@@ -608,7 +608,7 @@
             </div>
 
             <form id="transaction-form" onsubmit="handleFormSubmit(event)" class="space-y-3.5">
-                <input type="hidden" id="tx-id">
+                <input type="hidden" id="tx-id" value="">
                 <input type="hidden" id="tx-type" value="income">
 
                 <!-- 銀碼與記賬日期 -->
@@ -634,7 +634,7 @@
                 <!-- 純中文銀行與戶口下拉選單 -->
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label id="label-bank" class="block text-xs font-black text-primaryBlue tracking-wide mb-1.5">涉及銀行</label>
+                        <label id="label-bank" class="block text-xs font-black text-primaryBlue tracking-wide mb-1.5">收款銀行 / 方式</label>
                         <select id="tx-bank-name" onchange="handleBankChange()" class="custom-select w-full h-12 bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 text-base font-black text-primaryBlue focus:outline-none focus:border-primaryBlue cursor-pointer block">
                             <option value="現金交收">💵 現金交收</option>
                             <option value="滙豐銀行">🏦 滙豐銀行</option>
@@ -666,7 +666,7 @@
                     </div>
                     <div class="relative">
                         <input type="text" id="tx-party" list="history-parties-list" required="" placeholder="例如：陳生 / 太古城 A座" class="w-full h-12 bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 text-base font-bold text-textDark focus:outline-none focus:border-primaryBlue block">
-                        <datalist id="history-parties-list"></datalist>
+                        <datalist id="history-parties-list"><option value="本人"></option><option value="英發祥"></option><option value="阿峰-聯興"></option><option value="王總（德雲道）"></option><option value="汪波"></option><option value="陳董"></option><option value="司機健哥"></option><option value="雲石峰哥"></option><option value="泥水阿黃"></option><option value="陳總"></option><option value="王總（匯璽）"></option><option value="環球鋁窗"></option><option value="劉婷"></option><option value="陳小杰"></option><option value="來哥"></option><option value="王總（緹山）"></option><option value="王總（義德道）"></option><option value="樂成清拆"></option><option value="老婆"></option><option value="波哥（天鑄）"></option><option value="波哥（森麻實道）"></option><option value="桂碧秀"></option><option value="Built-in Pro"></option><option value="GBE"></option><option value="承上結存"></option><option value="營業現金存入"></option></datalist>
                     </div>
                 </div>
 
@@ -734,8 +734,8 @@
     </div>
 
     <!-- 提示氣泡 Toast -->
-    <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-primaryBlue border-2 border-yellow-400 text-white px-5 py-2.5 rounded-xl shadow-2xl text-xs font-bold z-50 flex items-center gap-2 pointer-events-none hidden">
-        <span id="toast-msg">🟢 成功連通 my-renocamp-app 雲端！</span>
+    <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-primaryBlue border-2 border-yellow-400 text-white px-5 py-2.5 rounded-xl shadow-2xl text-xs font-bold z-50 hidden flex items-center gap-2 pointer-events-none">
+        <span id="toast-msg">訊息</span>
     </div>
 
     <!-- 核心程式邏輯 -->
@@ -1945,4 +1945,4 @@
         });
     </script>
 
-<iframe ng-non-bindable="" frameborder="0" hspace="0" marginheight="0" marginwidth="0" scrolling="no" tabindex="-1" vspace="0" width="100%" aria-hidden="true" id="I0_1793314217073" name="I0_1793314217073" src="https://my-renocamp-app.firebaseapp.com/__/auth/iframe?apiKey=AIzaSyAZn_OLG0IW0XrIgx3Uf4cnsWSpVuHzS7o&amp;appName=renocamp-master-app&amp;v=11.6.1&amp;eid=p&amp;usegapi=1&amp;jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.zh_TW.8ezJ7WFASIU.O%2Fd%3D1%2Frs%3DAHpOoo-XHSwQy8B7xJsR_LIrn08tAwWe2g%2Fm%3D__features__#id=I0_1793314217073&amp;_gfid=I0_1793314217073&amp;parent=blob%3A%2F%2F&amp;pfname=&amp;rpctoken=33306406" style="position: absolute; top: -100px; width: 1px; height: 1px;"></iframe></body></html>
+<iframe ng-non-bindable="" frameborder="0" hspace="0" marginheight="0" marginwidth="0" scrolling="no" tabindex="-1" vspace="0" width="100%" aria-hidden="true" id="I0_1793317842455" name="I0_1793317842455" src="https://my-renocamp-app.firebaseapp.com/__/auth/iframe?apiKey=AIzaSyAZn_OLG0IW0XrIgx3Uf4cnsWSpVuHzS7o&amp;appName=renocamp-master-app&amp;v=11.6.1&amp;eid=p&amp;usegapi=1&amp;jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.zh_TW.8ezJ7WFASIU.O%2Fd%3D1%2Frs%3DAHpOoo-XHSwQy8B7xJsR_LIrn08tAwWe2g%2Fm%3D__features__#id=I0_1793317842455&amp;_gfid=I0_1793317842455&amp;parent=blob%3A%2F%2F&amp;pfname=&amp;rpctoken=34253615" style="position: absolute; top: -100px; width: 1px; height: 1px;"></iframe></body></html>
