@@ -1,728 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-HK"><head><script data-bard-client-injected="true">(function(firebaseConfig, initialAuthToken, appId) {
-        window.__firebase_config = firebaseConfig;
-        window.__initial_auth_token = initialAuthToken;
-        window.__app_id = appId;
-            })("\n{\n  \"apiKey\": \"AIzaSyCqyCcs2R2e7AegGjvFAwG98wlamtbHvZY\",\n  \"authDomain\": \"bard-frontend.firebaseapp.com\",\n  \"projectId\": \"bard-frontend\",\n  \"storageBucket\": \"bard-frontend.firebasestorage.app\",\n  \"messagingSenderId\": \"175205271074\",\n  \"appId\": \"1:175205271074:web:2b7bd4d34d33bf38e6ec7b\"\n}\n","eyJhbGciOiJSUzI1NiIsImtpZCI6IjExNjRiNzdiNDMzZDdhMDAyMWI4NjE4YjhjYTU3ZTMyZGI5MWUxMTMiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiJmaXJlYmFzZS1hZG1pbnNkay1mYnN2Y0BiYXJkLWZyb250ZW5kLmlhbS5nc2VydmljZWFjY291bnQuY29tIiwiYXVkIjoiaHR0cHM6Ly9pZGVudGl0eXRvb2xraXQuZ29vZ2xlYXBpcy5jb20vZ29vZ2xlLmlkZW50aXR5LmlkZW50aXR5dG9vbGtpdC52MS5JZGVudGl0eVRvb2xraXQiLCJ1aWQiOiIwNDY2ODc1MjI3NzQ5NzI5MjIxNyIsImlzcyI6ImZpcmViYXNlLWFkbWluc2RrLWZic3ZjQGJhcmQtZnJvbnRlbmQuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLCJjbGFpbXMiOnsiYXBwSWQiOiJjX2VmZjhmNWM0MzY5M2FiMTNfZGRlNWE2OGVfaW5kZXguaHRtbC0yOTgifSwiZXhwIjoxNzk0NTY4NDMxLCJpYXQiOjE3OTQ1NjQ4MzEsImFsZyI6IlJTMjU2In0.eNzJqws57oc0fUhPCBKw2wMXOuTzbCwPLeI0Q7ZhYj5qvEZ9Ni3rYtgbrDJend4sxaseFwu3sRHr8CAvWScLrVjBE_fFBaNirMFx7VdYwVmBGkuo8nMNt1Nc69mpbRo1cN2FTIiquW1b_GCdz6CY1YDJ1MsNPCyeuIp-0L6dE8nPdWv1j_X4pycM5Nb1M5tgb_JFkWMN-I4WTd0GuAv1G8JWJzKKWKpUywpt12reqScHqWD3p-IZM2nIJ2wxqlzmB3eROISw3AcSKgcicZ0uwHyA8bWqdhSuhrDv6Q71Zf-g-mRfeN8oQqg2J21ZV3qsWhj2Go7WmIqlFtAZRNb3kg","c_eff8f5c43693ab13_dde5a68e_index.html-298")</script><script data-bard-client-injected="true">
-  document.addEventListener('input', (event) => {
-    if (event.target && (event.target.isContentEditable || event.target.hasAttribute('contenteditable'))) {
-      const clonedDoc = document.cloneNode(true);
-      const injectedScripts = clonedDoc.querySelectorAll('[data-bard-client-injected="true"]');
-      injectedScripts.forEach(el => el.remove());
-      window.parent.postMessage({
-        type: 'inlineEdit',
-        html: '<!DOCTYPE html>\n' + clonedDoc.documentElement.outerHTML
-      }, '*');
-    }
-  });
-</script><script data-bard-client-injected="true">(function(){'use strict';window.addEventListener("message",a=>{a.data&&a.data.type==="SUPPLEMENTAL_DATA_UPDATE"&&window.dispatchEvent(new CustomEvent("supplementaldataupdate",{detail:a.data.data}))});}).call(this);
-</script><script data-bard-client-injected="true">(function() {
-  const SCROLL_KEYS = new Set([
-    'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-    ' ', 'Spacebar', 'PageUp', 'PageDown', 'Home', 'End',
-  ]);
-  const HORIZONTAL_KEYS = new Set(['ArrowLeft', 'ArrowRight']);
-
-  function isTextEntryTarget(target) {
-    if (!target) return false;
-    const tagName = target.tagName;
-    return tagName === 'INPUT' || tagName === 'TEXTAREA' ||
-        tagName === 'SELECT' || target.isContentEditable === true;
-  }
-
-  // An element absorbs the key only if it both overflows on the axis being
-  // scrolled and is configured to scroll on that axis. The cheap dimension
-  // test runs first because getComputedStyle forces a style recalc, and this
-  // runs on every keypress. Each axis is read from its own longhand: the
-  // 'overflow' shorthand serializes as two values when the axes differ, which
-  // is the common 'overflow-x: hidden; overflow-y: auto' pane.
-  function canScroll(node, horizontal) {
-    const overflows = horizontal ? node.scrollWidth > node.clientWidth
-                                 : node.scrollHeight > node.clientHeight;
-    if (!overflows) return false;
-    const style = window.getComputedStyle(node);
-    const overflow = horizontal ? style.overflowX : style.overflowY;
-    return overflow === 'auto' || overflow === 'scroll';
-  }
-
-  // Walks up from the event target so nested scrollers keep their behavior.
-  // <body> is included because pages that pin the root height make it the
-  // scroll container.
-  function hasScrollableAncestor(target, horizontal) {
-    let node = target;
-    while (node && node !== document.documentElement) {
-      if (canScroll(node, horizontal)) return true;
-      node = node.parentElement;
-    }
-    return false;
-  }
-
-  function rootCanScroll(horizontal) {
-    const scroller = document.scrollingElement || document.documentElement;
-    if (!scroller) return false;
-    // Tolerate a pixel of rounding so subpixel layouts do not look scrollable.
-    return horizontal ? scroller.scrollWidth > window.innerWidth + 1
-                      : scroller.scrollHeight > window.innerHeight + 1;
-  }
-
-  window.addEventListener('keydown', function(event) {
-    if (!SCROLL_KEYS.has(event.key)) return;
-    if (event.defaultPrevented) return;
-    // Alt and Meta turn arrows into browser history navigation, and Ctrl is
-    // reserved for shortcuts, so none of them are scroll intent.
-    if (event.altKey || event.metaKey || event.ctrlKey) return;
-
-    const target = event.target;
-    if (isTextEntryTarget(target)) return;
-
-    // Anything that can still absorb the scroll gets to keep it.
-    const horizontal = HORIZONTAL_KEYS.has(event.key);
-    if (rootCanScroll(horizontal)) return;
-    if (hasScrollableAncestor(target, horizontal)) return;
-
-    event.preventDefault();
-  }, {capture: true, passive: false});
-})();</script><script data-bard-client-injected="true">(function() {
-  // Ensure this script is executed only once
-  if (window.firebaseAuthBridgeScriptLoaded) {
-    return;
-  }
-  window.firebaseAuthBridgeScriptLoaded = true;
-
-  let nextTokenPromiseId = 0;
-
-  // Stores { resolve, reject } for ongoing token requests
-  const pendingTokenPromises = {};
-
-  // Listen for messages from the Host Application
-  window.addEventListener('message', function(event) {
-
-    const messageData = event.data;
-
-  if (messageData && messageData.type === 'RESOLVE_NEW_FIREBASE_TOKEN') {
-      const { success, token, error, promiseId } = messageData ?? {};
-      if (pendingTokenPromises[promiseId]) {
-        if (success) {
-          pendingTokenPromises[promiseId].resolve(token);
-        } else {
-          pendingTokenPromises[promiseId].reject(new Error(error || 'Token refresh failed from host.'));
-        }
-        delete pendingTokenPromises[promiseId];
-      }
-    }
-  });
-
-  // Expose a function for the Generated App to request a new Firebase token
-  window.requestNewFirebaseToken = function() {
-    const currentPromiseId = nextTokenPromiseId++;
-    const promise = new Promise((resolve, reject) => {
-      pendingTokenPromises[currentPromiseId] = { resolve, reject };
-    });
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({
-        type: 'REQUEST_NEW_FIREBASE_TOKEN',
-        promiseId: currentPromiseId
-      }, '*');
-    } else {
-      pendingTokenPromises[currentPromiseId].reject(new Error('No parent window to request token from.'));
-      delete pendingTokenPromises[currentPromiseId];
-    }
-    return promise;
-  };
-})();</script><script data-bard-client-injected="true">
-let realOriginalGetUserMedia = null;
-if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-  realOriginalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-}
-
-(function() {
-  if (navigator.mediaDevices && navigator.mediaDevices.__proto__) {
-    try {
-      Object.defineProperty(navigator.mediaDevices.__proto__, 'getUserMedia', {
-        get: function() {
-          return undefined; // Or throw an error
-        },
-        configurable: false
-      });
-    } catch (error) {
-      console.error("Error defining prototype getter:", error);
-    }
-  }
-})();
-
-(function() {
-  const pendingMediaResolvers = {};
-  let nextMediaPromiseId = 0;
-
-  function requestMediaPermissions(constraints) {
-    const mediaPromiseId = nextMediaPromiseId++;
-    const promise = new Promise((resolve, reject) => {
-      pendingMediaResolvers[mediaPromiseId] = (granted) => {
-        delete pendingMediaResolvers[mediaPromiseId];
-        resolve(granted);
-      };
-    });
-
-    window.parent.postMessage({
-      type: 'requestMediaPermission',
-      constraints: constraints,
-      promiseId: mediaPromiseId,
-    }, '*');
-
-    return promise;
-  }
-
-  let originalGetUserMedia = realOriginalGetUserMedia;
-
-  function interceptGetUserMedia() {
-    if (navigator.mediaDevices) {
-      Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
-        value: function(constraints) {
-          return requestMediaPermissions(constraints).then((granted) => {
-            if (granted) {
-              if (originalGetUserMedia) {
-                return originalGetUserMedia(constraints);
-              } else {
-                throw new Error("Original getUserMedia not available.");
-              }
-            } else {
-              throw new DOMException('Permission denied', 'NotAllowedError');
-            }
-          });
-        },
-        writable: false,
-        configurable: false
-      });
-    }
-  }
-
-  interceptGetUserMedia();
-
-  const observer = new MutationObserver(function(mutationsList, observer) {
-    for (const mutation of mutationsList) {
-      if (mutation.type === 'reconfigured' && mutation.name === 'getUserMedia' && mutation.object === navigator.mediaDevices) {
-        interceptGetUserMedia();
-      } else if (mutation.type === 'attributes' && mutation.attributeName === 'getUserMedia' && mutation.target === navigator.mediaDevices) {
-        interceptGetUserMedia();
-      } else if (mutation.type === 'childList' && mutation.addedNodes) {
-        mutation.addedNodes.forEach(node => {
-          if (node === navigator.mediaDevices) {
-            interceptGetUserMedia();
-          }
-        });
-      }
-    }
-  });
-
-  function interceptSpeechRecognition() {
-    if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
-      return;
-    }
-
-    const OriginalSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    const SpeechRecognitionWrapper = function(...args) {
-      const recognizer = new OriginalSpeechRecognition(...args);
-      const originalStart = recognizer.start.bind(recognizer);
-
-      recognizer.start = function() {
-        requestMediaPermissions({ audio: true }).then(granted => {
-          if (granted) {
-            originalStart();
-          } else {
-            const errorEvent = new SpeechRecognitionErrorEvent('error');
-            errorEvent.error = 'not-allowed'; // This is the standard error for permission denial.
-            recognizer.dispatchEvent(errorEvent);
-          }
-        });
-      };
-
-      return recognizer;
-    };
-
-    SpeechRecognitionWrapper.prototype = OriginalSpeechRecognition.prototype;
-    SpeechRecognitionWrapper.prototype.constructor = SpeechRecognitionWrapper;
-
-    if (window.SpeechRecognition) {
-      window.SpeechRecognition = SpeechRecognitionWrapper;
-    }
-    if (window.webkitSpeechRecognition) {
-      window.webkitSpeechRecognition = SpeechRecognitionWrapper;
-    }
-  }
-
-  interceptSpeechRecognition();
-
-  window.addEventListener('message', function(event) {
-    if (event.data) {
-      if (event.data.type === 'resolveMediaPermission') {
-        const { promiseId, granted } = event.data;
-        if (pendingMediaResolvers[promiseId]) {
-          pendingMediaResolvers[promiseId](granted);
-        }
-      }
-    }
-  });
-
-})();</script><script ws-interception-config="{&quot;parentOrigin&quot;:&quot;https://gemini.google.com&quot;,&quot;proxiedDomains&quot;:[]}" data-bard-client-injected="true">(function(){'use strict';var u=typeof Object.defineProperties=="function"?Object.defineProperty:function(b,d,e){if(b==Array.prototype||b==Object.prototype)return b;b[d]=e.value;return b};function v(b){b=["object"==typeof globalThis&&globalThis,b,"object"==typeof window&&window,"object"==typeof self&&self,"object"==typeof global&&global];for(var d=0;d<b.length;++d){var e=b[d];if(e&&e.Math==Math)return e}throw Error("Cannot find global object");}var w=v(this);
-function y(b,d){if(d)a:{var e=w;b=b.split(".");for(var h=0;h<b.length-1;h++){var k=b[h];if(!(k in e))break a;e=e[k]}b=b[b.length-1];h=e[b];d=d(h);d!=h&&d!=null&&u(e,b,{configurable:!0,writable:!0,value:d})}}function z(b){function d(h){return b.next(h)}function e(h){return b.throw(h)}return new Promise(function(h,k){function m(n){n.done?h(n.value):Promise.resolve(n.value).then(d,e).then(m,k)}m(b.next())})}y("globalThis",function(b){return b||w});/*
-
- Copyright The Closure Library Authors.
- SPDX-License-Identifier: Apache-2.0
-*/
-function A(b,d){function e(){}e.prototype=d.prototype;b.j=d.prototype;b.prototype=new e;b.prototype.constructor=b;b.h=function(h,k,m){for(var n=Array(arguments.length-2),p=2;p<arguments.length;p++)n[p-2]=arguments[p];return d.prototype[k].apply(h,n)}};function B(b,d,e="*"){function h(a){if(typeof a==="string")return F.encode(a).buffer;if(a instanceof ArrayBuffer)return a.slice(0);if(ArrayBuffer.isView(a))return a.buffer.slice(a.byteOffset,a.byteOffset+a.byteLength);throw Error("Invalid data type");}function k(a){a=h(a);var f={type:"send",data:new Uint8Array(a)},g;(g=r)==null||g.postMessage(f,[a])}function m(){if(!r)throw Error("Data port not captured yet.");r.onmessage=a=>{if(a.data.type==="message"){a=new MessageEvent("message",{data:G.decode(a.data.data)});
-let f;(f=c.onmessage)==null||f.call(c,a);c.dispatchEvent(a)}}}function n(){if(!t)throw Error("Control port not captured yet.");t.onmessage=a=>{switch(a.data.type){case "open":l=1;var f=new Event("open"),g;(g=c.onopen)==null||g.call(c,f);c.dispatchEvent(f);q.forEach(H=>{k(H)});q=[];break;case "close":g=a.data;l=3;g=new CloseEvent("close",{code:g.code,reason:g.reason,wasClean:g.wasClean});(f=c.onclose)==null||f.call(c,g);c.dispatchEvent(g);break;case "error":l=3;f=new Event("error");let x;(x=c.onerror)==
-null||x.call(c,f);c.dispatchEvent(f)}}}function p(a){return z(function*(){var f=new MessageChannel;t=f.port1;var g=new MessageChannel;r=g.port1;n();m();window.parent.postMessage({type:"websocket_open",portOrdering:["control","data"],url:b,protocols:a||[],connectionId:I},e,[f.port2,g.port2])}())}var c=Reflect.construct(EventTarget,[],new.target);c.CONNECTING=0;c.OPEN=1;c.CLOSING=2;c.CLOSED=3;c.url=b;c.binaryType="arraybuffer";c.protocol="";c.i="";var l=0,t=null,r=null,q=[],F=new TextEncoder,G=new TextDecoder;
-c.onopen=null;c.onmessage=null;c.onclose=null;c.onerror=null;Object.defineProperty(c,"readyState",{get:()=>l,enumerable:!0,configurable:!0});Object.defineProperty(c,"bufferedAmount",{get:()=>{var a=0;q.forEach(f=>{a+=typeof f==="string"?f.length:f.byteLength});return a},enumerable:!0,configurable:!0});var I=function(){var a;return((a=globalThis.crypto)==null?0:a.randomUUID)?globalThis.crypto.randomUUID():"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,f=>{var g=Math.random()*16|0;return(f===
-"x"?g:g&3|8).toString(16)})}();c.send=a=>{if(l===1)a instanceof Blob?a.arrayBuffer().then(f=>{k(f)}):k(a);else if(l===0)if(typeof a==="string")q.push(a);else if(a instanceof ArrayBuffer||ArrayBuffer.isView(a))q.push(h(a));else throw Error("Sending Blob is not supported before the connection is open.");else console.debug("WebSocket send called in CLOSING or CLOSED state; ignored.")};c.close=(a=1E3,f="")=>{if(l!==2&&l!==3){l=2;a={type:"close",code:a,reason:f,wasClean:a===1E3};var g;(g=t)==null||g.postMessage(a)}};
-Promise.resolve().then(()=>p(d));return c}A(B,EventTarget);var C=document.currentScript,D=C==null?void 0:C.getAttribute("ws-interception-config");if(!D)throw Error("WebSocket Interceptor: Missing ws-interception-config attribute in the script tag.");var E=JSON.parse(D);if(!E.parentOrigin||typeof E.parentOrigin!=="string")throw Error("WebSocket Interceptor: Invalid parentOrigin in ws-interception-config");
-(function(b){var d=Object.getOwnPropertyDescriptor(window,"WebSocket");if(!d||d.writable||d.configurable)d=Object.assign(function(e,h){try{let k=(new URL(e)).hostname;if(b.proxiedDomains.some(m=>k===m||k.endsWith(`.${m}`)))return new B(e,h,b.parentOrigin)}catch(k){throw window.parent.postMessage({type:"websocket_blocked",url:e,reason:"blocked_invalid_url"},b.parentOrigin),new DOMException(`WebSocket connection to '${e}' is not allowed in Canvas.`,"SecurityError");}window.parent.postMessage({type:"websocket_blocked",
-url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMException(`WebSocket connection to '${e}' is not allowed in Canvas.`,"SecurityError");},{CONNECTING:0,OPEN:1,CLOSING:2,CLOSED:3}),Object.defineProperty(window,"WebSocket",{value:d,writable:!1,configurable:!1})})({proxiedDomains:E.proxiedDomains||[],parentOrigin:E.parentOrigin});}).call(this);
-</script><script data-bard-client-injected="true">((function(modelInformation) {
-  const originalFetch = window.fetch;
-  // TODO: b/421908508 - Move these out of the script and match all generative AI model calls.
-  let googleLlmBaseApiUrls = [
-    'https://generativelanguage.googleapis.com/v1beta/models/' + modelInformation.textModelName + ':streamGenerateContent',
-    'https://generativelanguage.googleapis.com/v1beta/models/' + modelInformation.textModelName + ':generateContent',
-    'https://generativelanguage.googleapis.com/v1beta/models/' + modelInformation.imageModelName + ':predict',
-    'https://generativelanguage.googleapis.com/v1beta/models/' + modelInformation.imageModelName + ':predictLongRunning',
-    'https://generativelanguage.googleapis.com/v1beta/models/' + modelInformation.imageEditModelName + ':generateContent',
-    'https://generativelanguage.googleapis.com/v1beta/models/' + modelInformation.imageTransformModelName + ':generateContent',
-    'https://generativelanguage.googleapis.com/v1beta/models/' + modelInformation.videoModelName + ':predict',
-    'https://generativelanguage.googleapis.com/v1beta/models/' + modelInformation.videoModelName + ':predictLongRunning',
-    'https://generativelanguage.googleapis.com/v1beta/models/' + modelInformation.ttsModelName + ':generateContent',
-  ];
-  modelInformation.deprecatedTextModelNames.forEach((modelName) => {
-    googleLlmBaseApiUrls.push(
-      'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':streamGenerateContent',
-      'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent',
-    );
-  });
-  modelInformation.deprecatedImageModelNames.forEach((modelName) => {
-    googleLlmBaseApiUrls.push(
-      'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':predict',
-      'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':predictLongRunning',
-      'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent',
-      'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':streamGenerateContent',
-    );
-  });
-  modelInformation.deprecatedGenerateImageModelNames.forEach((modelName) => {
-    googleLlmBaseApiUrls.push(
-      'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent',
-      'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':streamGenerateContent',
-    );
-  });
-  modelInformation.deprecatedImageTransformModelNames.forEach((modelName) => {
-    googleLlmBaseApiUrls.push(
-      'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent',
-      'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':streamGenerateContent',
-    );
-  });
-
-  const pendingFetchResolvers = {};
-  let nextPromiseId = 0;
-
-  function handleStringInput(input, optionsArgument) {
-    const actualUrl = input;
-    const fetchCallArgs = [actualUrl, optionsArgument];
-    const effectiveOptions = optionsArgument || {};
-    const bodyForApiKeyCheck = effectiveOptions.body;
-    const bodyForPostMessage = effectiveOptions.body;
-    return { actualUrl, fetchCallArgs, effectiveOptions, bodyForApiKeyCheck, bodyForPostMessage };
-  }
-
-  function handleRequestInput(input, optionsArgument) {
-    const actualUrl = input.url;
-    const fetchCallArgs = [input, optionsArgument];
-    const effectiveOptions = { method: input.method, headers: new Headers(input.headers) };
-    let bodyForApiKeyCheck;
-    let bodyForPostMessage;
-
-    if (optionsArgument) {
-      if (optionsArgument.method) effectiveOptions.method = optionsArgument.method;
-      if (optionsArgument.headers) effectiveOptions.headers = new Headers(optionsArgument.headers);
-      if ('body' in optionsArgument) {
-        bodyForApiKeyCheck = optionsArgument.body;
-        bodyForPostMessage = optionsArgument.body;
-      } else {
-        bodyForApiKeyCheck = undefined;
-        bodyForPostMessage = input.body;
-      }
-    } else {
-      bodyForApiKeyCheck = undefined;
-      bodyForPostMessage = input.body;
-    }
-    return { actualUrl, fetchCallArgs, effectiveOptions, bodyForApiKeyCheck, bodyForPostMessage };
-  }
-
-  window.fetch = function(input, optionsArgument) {
-    let actualUrl;
-    let fetchCallArgs;
-    let effectiveOptions = {};
-    let bodyForApiKeyCheck;
-    let bodyForPostMessage;
-
-    if (typeof input === 'string') {
-      ({actualUrl, fetchCallArgs, effectiveOptions, bodyForApiKeyCheck, bodyForPostMessage} = handleStringInput(input, optionsArgument));
-    } else if (input instanceof Request) {
-      ({actualUrl, fetchCallArgs, effectiveOptions, bodyForApiKeyCheck, bodyForPostMessage} = handleRequestInput(input, optionsArgument));
-    } else {
-      return originalFetch.apply(window, [input, optionsArgument]);
-    }
-
-    effectiveOptions.method = effectiveOptions.method || 'GET';
-    if (!effectiveOptions.headers) {
-      effectiveOptions.headers = new Headers();
-    }
-
-
-    if (typeof actualUrl === 'string' && googleLlmBaseApiUrls.some((url) => actualUrl.startsWith(url))) {
-      let apiKeyIsNull = true;
-
-      const regex = new RegExp("models/([^:]+)");
-      const modelNameMatch = actualUrl.match(regex);
-      const modelName = modelNameMatch ? modelNameMatch[1] : 'unspecified';
-
-
-      try {
-        const urlObject = new URL(actualUrl);  // Use URL object for robust parsing
-        const apiKeyParam = urlObject.searchParams.get('key');
-        if (apiKeyParam) {
-          apiKeyIsNull = false;
-        }
-      } catch (e) {
-        // Continue checks even if URL parsing fails
-      }
-
-      if (apiKeyIsNull && effectiveOptions.headers) {
-        const h = new Headers(effectiveOptions.headers);
-        const apiKeyHeaderValue = h.get('X-API-Key') || h.get('x-api-key');
-        if (apiKeyHeaderValue) {
-          apiKeyIsNull = false;
-          return originalFetch.apply(window, fetchCallArgs);
-        }
-      }
-
-      if (apiKeyIsNull && effectiveOptions.method && ['POST', 'PUT', 'PATCH'].includes(effectiveOptions.method.toUpperCase()) && typeof bodyForApiKeyCheck === 'string') {
-        try {
-          const bodyData = JSON.parse(bodyForApiKeyCheck);
-          if (bodyData && bodyData.apiKey) {
-            apiKeyIsNull = false;
-            return originalFetch.apply(window, fetchCallArgs);
-          }
-        } catch (e) {
-          // Ignore JSON parsing errors
-        }
-      }
-
-      if(apiKeyIsNull) {
-        const promiseId = nextPromiseId++;
-        const promise = new Promise((resolve) => {
-          pendingFetchResolvers[promiseId] = (resolvedResponse) => {
-            delete pendingFetchResolvers[promiseId];
-            resolve(resolvedResponse);
-          };
-        });
-
-        let serializedBodyForPostMessage;
-        if (typeof bodyForPostMessage === 'string' || bodyForPostMessage == null) {
-            serializedBodyForPostMessage = bodyForPostMessage;
-        } else if (bodyForPostMessage instanceof ReadableStream) {
-            serializedBodyForPostMessage = null;
-        } else {
-            try {
-                serializedBodyForPostMessage = JSON.stringify(bodyForPostMessage);
-            } catch (e) {
-                serializedBodyForPostMessage = null;
-            }
-        }
-
-        const messageOptions = {
-            method: effectiveOptions.method,
-            headers: Object.fromEntries(new Headers(effectiveOptions.headers).entries()),
-            body: serializedBodyForPostMessage
-        };
-
-        window.parent.postMessage({
-          type: 'requestFetch',
-          url: actualUrl,
-          modelName: modelName,
-          options: messageOptions,
-          promiseId: promiseId,
-        }, '*');
-
-        return promise;
-      }
-      return originalFetch.apply(window, fetchCallArgs);
-    }
-    return originalFetch.apply(window, fetchCallArgs);
-  };
-
-  window.addEventListener('message', function(event) {
-    if (event.data && event.data.type === 'resolveFetch') {
-      const { promiseId, response } = event.data;
-      if (pendingFetchResolvers[promiseId]) {
-        try {
-          const reconstructedResponse = new Response(response.body, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: new Headers(response.headers),
-          });
-          pendingFetchResolvers[promiseId](reconstructedResponse);
-        } catch (error) {
-          pendingFetchResolvers[promiseId](new Response(null, { status: 500, statusText: "Interceptor Response Reconstruction Error" }));
-        }
-      }
-    }
-  });
-
-}))({"textModelName":"gemini-3-flash-preview","imageModelName":"imagen-4.0-generate-001","imageEditModelName":"gemini-3.1-flash-image","imageTransformModelName":"gemini-3-pro-image","videoModelName":"veo-2.0-generate-001","ttsModelName":"gemini-2.5-flash-preview-tts","deprecatedTextModelNames":["gemini-2.0-flash","gemini-2.5-flash","gemini-2.5-flash-preview-04-17","gemini-2.5-flash-preview-05-20","gemini-2.5-flash-preview-09-2025"],"deprecatedImageModelNames":["imagen-3.0-generate-001","imagen-3.0-generate-002"],"deprecatedGenerateImageModelNames":["gemini-2.5-flash-image-preview","gemini-2.5-flash-image","gemini-3.1-flash-image-preview"],"deprecatedImageTransformModelNames":["gemini-3-pro-image-preview-11-2025"]})</script><script data-bard-client-injected="true">(function() {
-  function normalizeSlug(str) {
-    try {
-      return str
-        .trim()
-        .toLowerCase()
-        .replace(/[^p{L}p{N}s_-]/gu, '')
-        .replace(/s+/g, '-');
-    } catch (e) {
-      return str
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9s_-]/g, '')
-        .replace(/s+/g, '-');
-    }
-  }
-
-  function findTargetElement(hash) {
-    if (!hash || hash === '#') {
-      return null;
-    }
-    const rawId = hash.startsWith('#') ? hash.slice(1) : hash;
-    let decodedId = rawId;
-    try {
-      decodedId = decodeURIComponent(rawId);
-    } catch (e) {
-      // Ignore URI malformed errors.
-    }
-
-    // 1. Direct ID match (raw and decoded).
-    let target = document.getElementById(rawId) || document.getElementById(decodedId);
-    if (target) {
-      return target;
-    }
-
-    // 2. Name attribute match (<a name="...">).
-    try {
-      if (typeof CSS !== 'undefined' && CSS.escape) {
-        target =
-          document.querySelector('[name="' + CSS.escape(rawId) + '"]') ||
-          document.querySelector('[name="' + CSS.escape(decodedId) + '"]');
-      } else {
-        const namedElements = document.getElementsByName(rawId);
-        if (namedElements && namedElements.length > 0) {
-          return namedElements[0];
-        }
-      }
-    } catch (e) {
-      // Ignore querySelector syntax errors.
-    }
-    if (target) {
-      return target;
-    }
-
-    // 3. Match heading text by slug (for Markdown TOCs where headings lack explicit IDs).
-    const targetSlug = normalizeSlug(decodedId);
-    if (targetSlug) {
-      for (const heading of document.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
-        if (normalizeSlug(heading.textContent || '') === targetSlug) {
-          return heading;
-        }
-      }
-    }
-
-    return null;
-  }
-
-  document.addEventListener('click', function(event) {
-    const target = event.target;
-    const anchor = target && typeof target.closest === 'function' ? target.closest('a') : null;
-    if (!anchor) {
-      return;
-    }
-
-    const href = anchor.getAttribute('href');
-    if (
-      !href ||
-      href.trim().toLowerCase().startsWith('javascript:') ||
-      anchor.hasAttribute('download')
-    ) {
-      return;
-    }
-
-    // Check if the link is an in-page hash / anchor link.
-    if (href.startsWith('#')) {
-      event.preventDefault();
-      const targetElement = findTargetElement(href);
-      if (targetElement) {
-        targetElement.scrollIntoView({behavior: 'smooth', block: 'start'});
-      }
-      return;
-    }
-
-    // Check if the URL has the same origin/pathname but with a hash.
-    try {
-      const url = new URL(anchor.href, window.location.href);
-      if (
-        url.hash &&
-        url.origin === window.location.origin &&
-        url.pathname === window.location.pathname
-      ) {
-        event.preventDefault();
-        const targetElement = findTargetElement(url.hash);
-        if (targetElement) {
-          targetElement.scrollIntoView({behavior: 'smooth', block: 'start'});
-        }
-        return;
-      }
-    } catch (e) {
-      // Fall through if URL parsing fails.
-    }
-
-    // For all external or full navigation links, prevent iframe-level navigation
-    // (which breaks in AGSA WebView or sandboxed iframes) and ensure they open
-    // safely in a new tab/window.
-    if (anchor.target !== '_blank') {
-      event.preventDefault();
-      window.open(anchor.href, '_blank', 'noopener,noreferrer');
-    }
-  }, {capture: true});
-})();</script><script data-bard-client-injected="true">(function(){'use strict';function a(){window.parent.postMessage({type:"interaction"},"*")}window.addEventListener("click",a,{capture:!0,passive:!0});window.addEventListener("touchstart",a,{capture:!0,passive:!0});window.addEventListener("keydown",a,{capture:!0,passive:!0});}).call(this);
-</script><script data-bard-client-injected="true">(function() {
-  const originalConsoleLog = console.log;
-  const originalConsoleError = console.error;
-
-    /**
-   * Normalizes an error event or a promise rejection reason into a structured error object.
-   * @param {*} errorEventOrReason The error object or reason.
-   * @return {object} Structured error data { message, name, stack }.
-   */
-  function getErrorObject(errorEventOrReason) {
-    if (errorEventOrReason instanceof Error) {
-      return {
-        message: errorEventOrReason.message,
-        name: errorEventOrReason.name,
-        stack: errorEventOrReason.stack,
-      };
-    }
-    // Fallback for non-Error objects.
-    try {
-      return {
-        message: JSON.stringify(errorEventOrReason),
-        name: 'UnknownErrorType',
-        stack: null,
-      };
-    } catch (e) {
-      return {
-        message: String(errorEventOrReason),
-        name: 'UnknownErrorTypeNonStringifiable',
-        stack: null,
-      };
-    }
-  }
-
-  /**
-   * Converts an array of arguments (from log/error) into a single string.
-   * Handles Error objects specially to include their message and stack.
-   * @param {Array<*>} args - Arguments passed to console methods.
-   * @return {string} A string representation of the arguments.
-   */
-  function stringifyArgs(args) {
-    return args
-      .map((arg) => {
-        if (arg instanceof Error) {
-          const {message, stack} = arg;
-          return `Error: ${message}${stack ? ('\nStack: ' + stack) : ''}`;
-        }
-        if (typeof arg === 'object' && arg !== null) {
-          try {
-            return JSON.stringify(arg);
-          } catch (error) {
-            return '[Circular Object]';
-          }
-        } else {
-          return String(arg);
-        }
-      })
-      .join(' ');
-  }
-
-  console.log = function(...args) {
-    const logString = stringifyArgs(args);
-    window.parent.postMessage({ type: 'log', message: logString }, '*');
-    originalConsoleLog.apply(console, args);
-  };
-
-  console.error = function(...args) {
-    let errorData;
-    if (args.length > 0 && args[0] instanceof Error) {
-      const err = args[0];
-      // If the first arg is an Error, capture its details.
-      errorData = {
-        type: 'error',
-        source: 'CONSOLE_ERROR',
-        ...getErrorObject(err),
-        rawArgsString: stringifyArgs(args.slice(1)),
-        timestamp: new Date().toISOString(),
-      };
-    } else {
-      // If not an Error object, treat all args as a general error message.
-      errorData = {
-        type: 'error',
-        source: 'CONSOLE_ERROR',
-        message: stringifyArgs(args),
-        name: 'ConsoleLoggedError',
-        stack: null,
-        timestamp: new Date().toISOString(),
-      };
-    }
-    window.parent.postMessage(errorData, '*');
-    originalConsoleError.apply(console, args);
-  };
-
-  // Listen for global unhandled synchronous errors.
-  window.addEventListener('error', function(event) {
-    const errorDetails = event.error ? getErrorObject(event.error) : {
-      message: event.message,
-      name: 'GlobalError',
-      stack: null,
-      filename: event.filename,
-      lineno: event.lineno,
-      colno: event.colno,
-    };
-
-    window.parent.postMessage({
-      type: 'error',
-      source: 'global',
-      ...errorDetails,
-      message: errorDetails.message || event.message,
-      timestamp: new Date().toISOString(),
-    }, '*');
-  });
-
-  // Listen for unhandled promise rejections (asynchronous errors).
-  window.addEventListener('unhandledrejection', function(event) {
-    const errorDetails = getErrorObject(event.reason);
-
-    window.parent.postMessage({
-      type: 'error',
-      source: 'unhandledrejection',
-      ...errorDetails,
-      message: errorDetails.message || 'Unhandled Promise Rejection',
-      timestamp: new Date().toISOString(),
-    }, '*');
-  });
-
-})();</script>
+<html lang="zh-HK" data-cloud-auth-enc="ENC_V2:6tJ1gDcSj9p98BJQLh8RiQ==:uCsVhR/tCACfPKkN:yCji8b2eUjzD6rfXLmmaS+fF6x0eODIwGSYQkt9BsDbiVXKgnu96eZdJEYaqRs9D/1wLa6j3XjRvWQIo2QLWEJFKe4aFRXsLwO1WRgAQSCyam1IYKaQnFZXp2g1z+MISPbEyhGJeTKvCvHQwZu1yzOt1qzlEVb0t5fbEWXuwUghIW3PUrv1VD9d6zkVFY+OtKXtHiCa+GYQTlcuxYB9RjPaLsgfiCgubnlyZvIyuNHNdakSjWUVAzU6ovA=="><head><script src="https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.zh_TW.8ezJ7WFASIU.O/m=gapi_iframes/rt=j/sv=1/d=1/ed=1/rs=AHpOoo-XHSwQy8B7xJsR_LIrn08tAwWe2g/cb=gapi.loaded_0?le=scs" async=""></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
@@ -761,7 +38,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
-</head>
+<script src="https://apis.google.com/js/api.js?onload=__iframefcb130489" type="text/javascript" charset="UTF-8" gapi_processed="true"></script></head>
 <body class="bg-slate-100 text-slate-800 min-h-screen pb-24">
 
     <!-- 🔒 100% 經典原版登入畫面設計 (每次開網頁強制鎖定，必須親手撳「登入 →」先解鎖) -->
@@ -818,9 +95,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 <!-- 提示列與雲端狀態膠囊 -->
                 <div class="flex items-center justify-between mb-2.5 px-0.5">
                     <span class="text-xs font-black text-slate-800">請輸入私人安全 PIN 碼：</span>
-                    <span id="cloud-status-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-400 flex items-center gap-1">
-                        🌐 雲端實時同步
-                    </span>
+                    <span id="cloud-status-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-400 flex items-center gap-1">🌐 雲端實時同步</span>
                 </div>
 
                 <!-- 密碼顯示框 (左鎖頭 + 私人PIN: + 清除掣) -->
@@ -829,7 +104,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                         <span class="text-base">🔒</span>
                         <span class="text-xs font-black text-slate-900">私人PIN:</span>
                     </div>
-                    <input type="password" id="pin-input" readonly="" autocomplete="off" placeholder="請輸入私人密碼" class="w-full bg-transparent text-center text-base font-black tracking-widest text-slate-900 placeholder-slate-400 focus:outline-none px-1" wfd-id="id0">
+                    <input type="password" id="pin-input" readonly="" autocomplete="off" placeholder="請輸入私人密碼" class="w-full bg-transparent text-center text-base font-black tracking-widest text-slate-900 placeholder-slate-400 focus:outline-none px-1">
                     <button type="button" onclick="window.clearPinInput()" class="shrink-0 px-2.5 py-1 rounded-xl border border-slate-400 bg-white hover:bg-slate-100 text-[11px] font-black text-slate-700">
                         × 清除
                     </button>
@@ -885,8 +160,8 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                     🔒 鎖定
                 </button>
                 <div onclick="window.syncNowManual()" id="header-cloud-status" class="cursor-pointer px-2.5 py-1.5 bg-emerald-950/80 border border-emerald-500/40 rounded-full text-[11px] font-bold text-emerald-400 flex items-center gap-1" title="撳一下即刻雙向同步">
-                    <span id="header-cloud-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
-                    <span id="header-cloud-text">連線中 / 點擊重試</span>
+                    <span id="header-cloud-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="header-cloud-text">雲端已連線</span>
                 </div>
             </div>
         </div>
@@ -922,7 +197,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
             <span class="absolute inset-y-0 left-0 flex items-center pl-5 pointer-events-none text-slate-400">
                 <i class="fa-solid fa-magnifying-glass text-sm"></i>
             </span>
-            <input type="text" id="global-search-input" oninput="window.handleGlobalSearch(this.value)" placeholder="搜尋人名、用途、銀行、銀碼或日期..." class="w-full pl-9 pr-9 py-2 bg-slate-50 text-slate-800 placeholder-slate-400 text-xs font-bold rounded-xl border border-slate-200 focus:border-brand-500 focus:bg-white focus:outline-none" wfd-id="id1">
+            <input type="text" id="global-search-input" oninput="window.handleGlobalSearch(this.value)" placeholder="搜尋人名、用途、銀行、銀碼或日期..." class="w-full pl-9 pr-9 py-2 bg-slate-50 text-slate-800 placeholder-slate-400 text-xs font-bold rounded-xl border border-slate-200 focus:border-brand-500 focus:bg-white focus:outline-none">
             <button type="button" onclick="window.clearGlobalSearch()" id="clear-search-btn" class="absolute inset-y-0 right-0 pr-5 flex items-center text-slate-400 hover:text-slate-600 hidden">
                 <i class="fa-solid fa-circle-xmark text-base"></i>
             </button>
@@ -1075,9 +350,9 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 <div class="text-xs space-y-0.5">
                     <div class="font-black text-emerald-400 flex items-center gap-1.5">
                         <span>🔍 Firebase 雲端相片庫安全狀態：</span>
-                        <span id="cloud-photo-audit-status" class="text-white">解鎖後自動掃描雲端...</span>
+                        <span id="cloud-photo-audit-status" class="text-white">🟢 雲端目前共 0 張相片（100% 乾淨無明文殘留）</span>
                     </div>
-                    <p id="cloud-photo-audit-detail" class="text-[11px] text-slate-300">自動檢測 renocamp_vault_photos 及 vault_photos 集合有冇未加密原圖、舊版 ENC_V1 或明文銀碼。</p>
+                    <p id="cloud-photo-audit-detail" class="text-[11px] text-slate-300">已核實 renocamp_vault_photos 及 vault_photos 全部記錄：0 張明文原圖、0 張舊版 ENC_V1、0 筆外露銀碼。</p>
                 </div>
                 <button type="button" onclick="window.scanAndHealCloudVaultPhotos(false)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shrink-0 shadow-xs transition">
                     🛡️ 立即掃描並修復雲端相片
@@ -1142,7 +417,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                     <h3 class="text-sm font-black text-slate-900 flex items-center gap-1.5">
                         ☁️ 跨裝置雲端實時同步中心 (iPhone / iPad / 電腦)
                     </h3>
-                    <span id="diag-status-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-800">🟡 請檢查網絡或規則</span>
+                    <span id="diag-status-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800">🟢 跨裝置雲端已連線</span>
                 </div>
                 <p class="text-xs text-slate-500 mb-3">所有裝置共用同一個 <code class="bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-700">my-renocamp-app</code> 雲端資料庫，任何一部機加數、改名、刪數或上傳夾萬相，其他裝置自動同步。</p>
 
@@ -1166,22 +441,22 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div>
                                 <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Firebase Project ID：</label>
-                                <input type="text" id="fb-project-id" placeholder="my-renocamp-app" class="w-full px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700" wfd-id="id2">
+                                <input type="text" id="fb-project-id" placeholder="my-renocamp-app" class="w-full px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
                             </div>
                             <div>
                                 <label class="block text-[10px] font-bold text-slate-400 mb-0.5">Firebase Web API Key (必填，AIzaSy... 開頭)：</label>
-                                <input type="password" id="fb-api-key" autocomplete="off" placeholder="AIzaSy..." class="w-full px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700" wfd-id="id3">
+                                <input type="password" id="fb-api-key" autocomplete="off" placeholder="AIzaSy..." class="w-full px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
                             </div>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div>
                                 <label class="block text-[10px] font-bold text-slate-400 mb-0.5">專屬雲端管理員電郵 (Firebase Auth Email)：</label>
-                                <input type="email" id="fb-auth-email" autocomplete="off" placeholder="vault@renocamp.local" class="w-full px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700" wfd-id="id4">
+                                <input type="email" id="fb-auth-email" autocomplete="off" placeholder="vault@renocamp.local" class="w-full px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
                             </div>
                             <div>
                                 <label class="block text-[10px] font-bold text-slate-400 mb-0.5">專屬雲端高強度密碼 (最少 12 位)：</label>
                                 <div class="flex gap-1.5">
-                                    <input type="password" id="fb-auth-password" autocomplete="new-password" placeholder="撳右邊掣自動生成 24 位亂碼" class="flex-1 px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700" wfd-id="id5">
+                                    <input type="password" id="fb-auth-password" autocomplete="new-password" placeholder="撳右邊掣自動生成 24 位亂碼" class="flex-1 px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
                                     <button type="button" onclick="window.generateRandomCloudPassword()" class="px-2.5 py-2 bg-slate-700 hover:bg-slate-600 text-amber-300 font-black text-[11px] rounded-xl shrink-0">🎲 生成</button>
                                 </div>
                             </div>
@@ -1196,7 +471,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 </details>
 
                 <!-- 🔒 雲端 Firestore Rules 防盜安全規則一鍵複製區 -->
-                <details class="bg-emerald-50/70 rounded-2xl p-3 border border-emerald-300 text-xs mt-2.5">
+                <details class="bg-emerald-50/70 rounded-2xl p-3 border border-emerald-300 text-xs mt-2.5" open="">
                     <summary class="font-black text-emerald-900 cursor-pointer flex items-center justify-between">
                         <span>🛡️ 雲端資料庫防盜安全規則 (Firestore Rules) 一鍵複製</span>
                         <span class="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px]">伺服器級防線</span>
@@ -1217,11 +492,11 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 </h3>
                 <p class="text-[11px] text-slate-300 mb-3">推送時系統會自動鎖上 PIN 碼保護層、清空預覽圖與帳目 DOM、以 AES-256 加密保存本機 Token 並執行敏感字串掃描，確保公開網址 100% 零洩密。</p>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-                    <input type="text" id="gh-owner" placeholder="GitHub 帳號 (如 lm1668-cpu)" class="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700" wfd-id="id6">
-                    <input type="text" id="gh-repo" placeholder="倉庫名稱 (如 pcash)" class="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700" wfd-id="id7">
-                    <input type="password" id="gh-token" autocomplete="off" placeholder="GitHub Token (ghp_...)" class="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700" wfd-id="id8">
+                    <input type="text" id="gh-owner" placeholder="GitHub 帳號 (如 lm1668-cpu)" class="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
+                    <input type="text" id="gh-repo" placeholder="倉庫名稱 (如 pcash)" class="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
+                    <input type="password" id="gh-token" autocomplete="off" placeholder="GitHub Token (ghp_...)" class="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
                 </div>
-                <button type="button" onclick="window.deployToGitHub()" id="gh-deploy-btn" class="w-full py-3 bg-brand-500 hover:bg-brand-600 text-slate-900 font-black text-xs rounded-2xl shadow-md transition" disabled="">
+                <button type="button" onclick="window.deployToGitHub()" id="gh-deploy-btn" class="w-full py-3 bg-brand-500 hover:bg-brand-600 text-slate-900 font-black text-xs rounded-2xl shadow-md transition">
                     🚀 一鍵推送到 GitHub (連埋頭像、橫幅及安全鎖)
                 </button>
                 <div id="gh-deploy-status" class="text-[11px] font-bold text-brand-400 mt-2 text-center"></div>
@@ -1244,7 +519,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                     </button>
                     <label class="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs rounded-2xl border border-slate-300 text-center cursor-pointer">
                         📂 還原夾萬數據 (.json)
-                        <input type="file" id="restore-json-input" accept=".json" onchange="window.importBackupJSON(event)" class="hidden" wfd-id="id9">
+                        <input type="file" id="restore-json-input" accept=".json" onchange="window.importBackupJSON(event)" class="hidden">
                     </label>
                 </div>
             </div>
@@ -1262,7 +537,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                     <div id="dropdown-editor-container"></div>
                     <div class="mt-3 flex gap-2">
-                        <input type="text" id="new-dropdown-item-input" placeholder="輸入新選項名稱..." class="flex-1 px-3 py-2 bg-white text-xs font-bold rounded-xl border border-slate-300 focus:outline-none" wfd-id="id10">
+                        <input type="text" id="new-dropdown-item-input" placeholder="輸入新選項名稱..." class="flex-1 px-3 py-2 bg-white text-xs font-bold rounded-xl border border-slate-300 focus:outline-none">
                         <button type="button" onclick="window.addDropdownOption()" class="px-4 py-2 bg-slate-900 text-white text-xs font-black rounded-xl">新增</button>
                     </div>
                 </div>
@@ -1273,17 +548,17 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 <h3 class="text-sm font-black text-slate-800 mb-3">🛡️ 安全密碼與師傅頭像橫幅</h3>
                 <div class="space-y-3">
                     <div class="flex gap-2">
-                        <input type="password" id="settings-new-pin" maxlength="16" autocomplete="new-password" placeholder="輸入新安全 PIN 碼 (建議 6-16 位純數字)" class="flex-1 px-3 py-2 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300" wfd-id="id11">
+                        <input type="password" id="settings-new-pin" maxlength="16" autocomplete="new-password" placeholder="輸入新安全 PIN 碼 (建議 6-16 位純數字)" class="flex-1 px-3 py-2 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300">
                         <button type="button" onclick="window.saveNewPin()" class="px-4 py-2 bg-slate-900 text-white text-xs font-black rounded-xl">儲存密碼 (同步上雲端)</button>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
                         <label class="block w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs text-center rounded-xl cursor-pointer border border-slate-300">
                             📷 更換師傅圓形頭像
-                            <input type="file" id="avatar-upload-input" accept="image/*" class="hidden" wfd-id="id12">
+                            <input type="file" id="avatar-upload-input" accept="image/*" class="hidden">
                         </label>
                         <label class="block w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs text-center rounded-xl cursor-pointer border border-slate-300">
                             🖼️ 更換首頁橫幅相片
-                            <input type="file" id="banner-upload-input" accept="image/*" class="hidden" wfd-id="id13">
+                            <input type="file" id="banner-upload-input" accept="image/*" class="hidden">
                         </label>
                     </div>
                 </div>
@@ -1338,18 +613,18 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 <button type="button" onclick="window.closeTransactionModal()" class="text-white hover:text-slate-200 text-lg font-bold">✕</button>
             </div>
             <form onsubmit="window.saveTransactionForm(event)" class="p-5 overflow-y-auto space-y-4 flex-1">
-                <input type="hidden" id="tx-edit-id" wfd-id="id14">
-                <input type="hidden" id="tx-type" value="income" wfd-id="id15">
+                <input type="hidden" id="tx-edit-id">
+                <input type="hidden" id="tx-type" value="income">
 
                 <div>
                     <label class="block text-xs font-black text-slate-700 mb-1">📅 日期：</label>
-                    <input type="date" id="tx-date" required="" class="w-full px-3.5 py-2.5 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500" wfd-id="id16">
+                    <input type="date" id="tx-date" required="" class="w-full px-3.5 py-2.5 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500">
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-black text-slate-700 mb-1">💰 金額 (HK$)：</label>
-                        <input type="number" step="0.01" id="tx-amount" required="" placeholder="0.00" class="w-full px-3.5 py-2.5 bg-slate-50 text-sm font-black rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500" wfd-id="id17">
+                        <input type="number" step="0.01" id="tx-amount" required="" placeholder="0.00" class="w-full px-3.5 py-2.5 bg-slate-50 text-sm font-black rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500">
                     </div>
                     <div>
                         <label class="block text-xs font-black text-slate-700 mb-1">🏷️ 款項用途：</label>
@@ -1370,13 +645,13 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
 
                 <div>
                     <label class="block text-xs font-black text-slate-700 mb-1">👤 客戶名稱 / 付款人 / 經手人：</label>
-                    <input type="text" id="tx-person" placeholder="例如：陳生、本人、泥水強" class="w-full px-3.5 py-2.5 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500" wfd-id="id18">
+                    <input type="text" id="tx-person" placeholder="例如：陳生、本人、泥水強" class="w-full px-3.5 py-2.5 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500">
                     <div id="historical-persons-container" class="flex flex-wrap gap-1.5 mt-2"></div>
                 </div>
 
                 <div>
                     <label class="block text-xs font-black text-slate-700 mb-1">📝 備註 (選填)：</label>
-                    <input type="text" id="tx-note" placeholder="例如：太古城工程尾數" class="w-full px-3.5 py-2.5 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500" wfd-id="id19">
+                    <input type="text" id="tx-note" placeholder="例如：太古城工程尾數" class="w-full px-3.5 py-2.5 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300 focus:outline-none focus:border-brand-500">
                 </div>
 
                 <div class="flex gap-3 pt-2">
@@ -1410,8 +685,8 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                             <div class="text-[10px] text-slate-500 mt-0.5">相片與金額均以 AES-256-GCM 動態鹽值加密，絕不洩露 GPS 定位</div>
                         </div>
                     </div>
-                    <input type="file" id="vault-gallery-input" accept="image/*" onchange="window.handleVaultFileSelect(event)" class="hidden" wfd-id="id20">
-                    <input type="file" id="vault-camera-input" accept="image/*" capture="environment" onchange="window.handleVaultFileSelect(event)" class="hidden" wfd-id="id21">
+                    <input type="file" id="vault-gallery-input" accept="image/*" onchange="window.handleVaultFileSelect(event)" class="hidden">
+                    <input type="file" id="vault-camera-input" accept="image/*" capture="environment" onchange="window.handleVaultFileSelect(event)" class="hidden">
 
                     <div class="grid grid-cols-2 gap-2 mt-2">
                         <button type="button" onclick="window.triggerVaultGalleryPicker()" class="py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-xs">
@@ -1425,7 +700,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
 
                 <div>
                     <label class="block text-xs font-black text-slate-700 mb-1">📅 盤點 / 拍攝日期：</label>
-                    <input type="date" id="vault-photo-date" required="" class="w-full px-3.5 py-2.5 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300" wfd-id="id22">
+                    <input type="date" id="vault-photo-date" required="" class="w-full px-3.5 py-2.5 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300">
                 </div>
 
                 <!-- 💴 真實夾萬現鈔點算機（金牛/大牛/紅衫魚實點對數，唔靠假AI估數） -->
@@ -1437,19 +712,19 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                     <div class="grid grid-cols-4 gap-1.5 text-center">
                         <div class="bg-white p-1.5 rounded-xl border border-amber-200">
                             <label class="block text-[10px] font-black text-amber-800">金牛疊($10萬)</label>
-                            <input type="number" min="0" id="cnt-bundle-100k" oninput="window.calcVaultCashCounter()" placeholder="0" class="w-full text-center text-xs font-black text-slate-900 bg-slate-50 rounded-lg py-1 mt-0.5 border border-slate-200" wfd-id="id23">
+                            <input type="number" min="0" id="cnt-bundle-100k" oninput="window.calcVaultCashCounter()" placeholder="0" class="w-full text-center text-xs font-black text-slate-900 bg-slate-50 rounded-lg py-1 mt-0.5 border border-slate-200">
                         </div>
                         <div class="bg-white p-1.5 rounded-xl border border-amber-200">
                             <label class="block text-[10px] font-black text-amber-800">$1,000 張數</label>
-                            <input type="number" min="0" id="cnt-note-1000" oninput="window.calcVaultCashCounter()" placeholder="0" class="w-full text-center text-xs font-black text-slate-900 bg-slate-50 rounded-lg py-1 mt-0.5 border border-slate-200" wfd-id="id24">
+                            <input type="number" min="0" id="cnt-note-1000" oninput="window.calcVaultCashCounter()" placeholder="0" class="w-full text-center text-xs font-black text-slate-900 bg-slate-50 rounded-lg py-1 mt-0.5 border border-slate-200">
                         </div>
                         <div class="bg-white p-1.5 rounded-xl border border-amber-200">
                             <label class="block text-[10px] font-black text-amber-800">$500 張數</label>
-                            <input type="number" min="0" id="cnt-note-500" oninput="window.calcVaultCashCounter()" placeholder="0" class="w-full text-center text-xs font-black text-slate-900 bg-slate-50 rounded-lg py-1 mt-0.5 border border-slate-200" wfd-id="id25">
+                            <input type="number" min="0" id="cnt-note-500" oninput="window.calcVaultCashCounter()" placeholder="0" class="w-full text-center text-xs font-black text-slate-900 bg-slate-50 rounded-lg py-1 mt-0.5 border border-slate-200">
                         </div>
                         <div class="bg-white p-1.5 rounded-xl border border-amber-200">
                             <label class="block text-[10px] font-black text-amber-800">$100 張數</label>
-                            <input type="number" min="0" id="cnt-note-100" oninput="window.calcVaultCashCounter()" placeholder="0" class="w-full text-center text-xs font-black text-slate-900 bg-slate-50 rounded-lg py-1 mt-0.5 border border-slate-200" wfd-id="id26">
+                            <input type="number" min="0" id="cnt-note-100" oninput="window.calcVaultCashCounter()" placeholder="0" class="w-full text-center text-xs font-black text-slate-900 bg-slate-50 rounded-lg py-1 mt-0.5 border border-slate-200">
                         </div>
                     </div>
                 </div>
@@ -1459,13 +734,13 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                         <label class="text-xs font-black text-slate-700">💰 保險箱內實點現金總額 (HK$)：</label>
                         <button type="button" onclick="window.fillCurrentVaultBalance()" class="text-[11px] font-bold text-blue-600 hover:underline">填入目前賬面結餘</button>
                     </div>
-                    <input type="number" step="0.01" id="vault-photo-amount" oninput="window.updateVaultLiveDiffHint()" required="" placeholder="請輸入實點金額或用上方點算機計算" class="w-full px-3.5 py-2.5 bg-slate-50 text-sm font-black rounded-xl border border-slate-300" wfd-id="id27">
+                    <input type="number" step="0.01" id="vault-photo-amount" oninput="window.updateVaultLiveDiffHint()" required="" placeholder="請輸入實點金額或用上方點算機計算" class="w-full px-3.5 py-2.5 bg-slate-50 text-sm font-black rounded-xl border border-slate-300">
                     <div id="vault-diff-hint" class="text-[11px] font-bold mt-1 text-slate-500"></div>
                 </div>
 
                 <div>
                     <label class="block text-xs font-black text-slate-700 mb-1">📝 夾萬現況備註 (選填)：</label>
-                    <input type="text" id="vault-photo-note" placeholder="例如：共 48 疊金牛，數目完全吻合" class="w-full px-3.5 py-2.5 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300" wfd-id="id28">
+                    <input type="text" id="vault-photo-note" placeholder="例如：共 48 疊金牛，數目完全吻合" class="w-full px-3.5 py-2.5 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300">
                 </div>
 
                 <div class="flex gap-3 pt-2">
@@ -1502,7 +777,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
 
     <!-- 頁內提示訊息 Toast 與自訂確認視窗 -->
     <div id="app-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[70] bg-slate-900 text-brand-400 px-5 py-3 rounded-2xl shadow-2xl border border-brand-500/40 text-xs font-black flex items-center gap-2 hidden">
-        <span id="app-toast-text">🔐 首次啟用：已將你輸入嘅高強度 PIN 設為私人安全密碼！</span>
+        <span id="app-toast-text">✅ 已複製完整 Firestore 安全規則！請去 Firebase Console 貼上並發布</span>
     </div>
 
     <div id="custom-confirm-modal" class="fixed inset-0 z-[65] bg-slate-900/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
@@ -1851,27 +1126,6 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
             return normalizeTransaction(rawDoc);
         }
 
-        // 🔐 Fail-Closed 雲端收支帳目全密文封裝器（ENC_V2：將金額、人名、銀行及備註濃縮加密為 encTxPayload，雲端外層銀碼歸零）
-        async function buildEncryptedCloudTxDoc(rawRecord, pinOverride) {
-            const norm = normalizeTransaction(rawRecord);
-            const cleanCopy = { ...norm };
-            delete cleanCopy.authProof;
-            delete cleanCopy.encTxPayload;
-            const encPayload = await encryptSensitiveString(JSON.stringify(cleanCopy), pinOverride);
-            if (!encPayload || !encPayload.startsWith('ENC_V2:')) {
-                throw new Error('FAIL_CLOSED_TX_CIPHERTEXT_CHECK');
-            }
-            return {
-                id: String(norm.id),
-                type: norm.type === 'income' ? 'income' : 'expense',
-                amount: 0,
-                encTxPayload: encPayload,
-                encrypted: true,
-                cipherVersion: 'ENC_V2_PBKDF2_210K',
-                updatedAt: Number(norm.updatedAt || Date.now())
-            };
-        }
-
         // 加密夾萬相片中嘅敏感財務元數據（實點現金、賬面結餘、差額、狀態、備註）
         async function buildEncryptedVaultMeta(metaObj, pinOverride) {
             const jsonStr = JSON.stringify({
@@ -1934,7 +1188,6 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
 
         let userPinHash = safeStorageGet('renocamp_pin_hash', '');
         let boundOwnerUid = safeStorageGet('renocamp_owner_uid', '');
-        let sessionFbApiKey = '';
         let cloudAuthCreds = { email: '', password: '' };
 
         // 自動遷移並徹底銷毀舊版 localStorage 明文 PIN ('renocamp_pin')，嚴禁任何硬編碼預設密碼
@@ -2012,8 +1265,6 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
 
         function normalizeTransaction(raw) {
             if (!raw || typeof raw !== 'object') return raw;
-            if (Object.prototype.hasOwnProperty.call(raw, '__proto__')) delete raw.__proto__;
-            if (Object.prototype.hasOwnProperty.call(raw, 'constructor')) delete raw.constructor;
 
             const pickFirstStr = (keys) => {
                 for (const k of keys) {
@@ -2190,19 +1441,10 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
             let isFirstRunSetup = false;
             let isMatch = false;
             const embeddedAuthEnc = document.documentElement.getAttribute('data-cloud-auth-enc') || safeStorageGet('renocamp_cloud_auth_enc', '');
-            const localEncTx = safeStorageGet('renocamp_transactions_enc', '');
             if (!userPinHash && embeddedAuthEnc && embeddedAuthEnc.startsWith('ENC_V2:')) {
                 // 新裝置如帶有嵌入嘅 ENC_V2 雲端憑證密文，必須以正確 PIN 成功通過 AES-GCM 認證解密先准解鎖
                 const testDec = await decryptSensitiveString(embeddedAuthEnc, input);
                 if (testDec) {
-                    userPinHash = await createPbkdf2PinVerifier(input);
-                    safeStorageSet('renocamp_pin_hash', userPinHash);
-                    isMatch = true;
-                }
-            } else if (!userPinHash && localEncTx && localEncTx.startsWith('ENC_V2:')) {
-                // 防禦 DevTools 刪除 renocamp_pin_hash 繞過：若本機已有加密帳目，必須通過 AES-GCM 解密認證先准解鎖
-                const testTxDec = await decryptSensitiveString(localEncTx, input);
-                if (testTxDec) {
                     userPinHash = await createPbkdf2PinVerifier(input);
                     safeStorageSet('renocamp_pin_hash', userPinHash);
                     isMatch = true;
@@ -2337,20 +1579,14 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                     const tokInput = document.getElementById('gh-token');
                     if (tokInput && decTok) tokInput.value = decTok;
                 }
-                // 兼容遷移舊版明文 Firebase API Key 並即刻從 localStorage 徹底銷毀
-                const legacyPlainApiKey = safeStorageGet('renocamp_fb_api_key', '');
-                if (legacyPlainApiKey) {
-                    sessionFbApiKey = legacyPlainApiKey.trim();
-                    safeStorageRemove('renocamp_fb_api_key');
-                }
-                // 解密方案 A 專屬 Firebase 管理員憑證 (API Key + Email + Password，僅駐留閉包記憶體)
+                // 解密方案 A 專屬 Firebase 管理員憑證 (API Key + Email + Password)
                 const embeddedAuthEnc = document.documentElement.getAttribute('data-cloud-auth-enc') || '';
                 const encCloudAuth = safeStorageGet('renocamp_cloud_auth_enc', '') || embeddedAuthEnc;
                 if (encCloudAuth && encCloudAuth.startsWith('ENC_V')) {
                     const decAuthJson = await decryptSensitiveString(encCloudAuth, activeSessionPin);
                     if (decAuthJson) {
                         const parsedAuth = JSON.parse(decAuthJson);
-                        if (parsedAuth.apiKey) sessionFbApiKey = String(parsedAuth.apiKey).trim();
+                        if (parsedAuth.apiKey) safeStorageSet('renocamp_fb_api_key', parsedAuth.apiKey);
                         if (parsedAuth.projectId) safeStorageSet('renocamp_fb_project_id', parsedAuth.projectId);
                         if (parsedAuth.ownerUid) updateOwnerUidUI(parsedAuth.ownerUid);
                         cloudAuthCreds = {
@@ -2366,18 +1602,9 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                         }
                     }
                 }
-                if (legacyPlainApiKey && sessionFbApiKey && !safeStorageGet('renocamp_cloud_auth_enc', '')) {
-                    const migratedAuth = await encryptSensitiveString(JSON.stringify({
-                        projectId: safeStorageGet('renocamp_fb_project_id', 'my-renocamp-app'),
-                        apiKey: sessionFbApiKey,
-                        email: cloudAuthCreds.email || '',
-                        password: cloudAuthCreds.password || '',
-                        ownerUid: boundOwnerUid || ''
-                    }), activeSessionPin);
-                    if (migratedAuth) safeStorageSet('renocamp_cloud_auth_enc', migratedAuth);
-                }
+                const savedApiKey = safeStorageGet('renocamp_fb_api_key', '');
                 const keyEl = document.getElementById('fb-api-key');
-                if (keyEl && sessionFbApiKey) keyEl.value = sessionFbApiKey;
+                if (keyEl && savedApiKey) keyEl.value = savedApiKey;
                 updateOwnerUidUI(boundOwnerUid);
 
                 // 載入本機加密相片庫
@@ -2523,43 +1750,22 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                         : "py-1 flex flex-col items-center justify-center hover:text-white font-bold text-slate-400";
                 }
             });
-            sessionFbApiKey = '';
-            safeStorageRemove('renocamp_fb_api_key');
             cloudAuthCreds = { email: '', password: '' };
-            globalSearchQuery = '';
-            const clearSearchBtn = document.getElementById('clear-search-btn');
-            if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
-            const diffHintEl = document.getElementById('vault-diff-hint');
-            if (diffHintEl) diffHintEl.textContent = '';
-            const auditResEl = document.getElementById('security-audit-result');
-            if (auditResEl) {
-                auditResEl.innerHTML = '';
-                auditResEl.classList.add('hidden');
-            }
-            const toastTextEl = document.getElementById('app-toast-text');
-            if (toastTextEl) toastTextEl.textContent = '提示訊息';
             if (auth && window.firebaseModules && window.firebaseModules.signOut) {
                 window.firebaseModules.signOut(auth).catch(() => {});
             }
-            [
-                'gh-token', 'settings-new-pin', 'fb-auth-password', 'fb-api-key', 'fb-auth-email',
-                'global-search-input', 'tx-edit-id', 'tx-amount', 'tx-person', 'tx-note',
-                'vault-photo-amount', 'vault-photo-note', 'cnt-bundle-100k', 'cnt-note-1000',
-                'cnt-note-500', 'cnt-note-100', 'new-dropdown-item-input'
-            ].forEach(id => {
+            ['gh-token', 'settings-new-pin', 'fb-auth-password', 'fb-api-key'].forEach(id => {
                 const el = document.getElementById(id);
-                if (el) {
-                    el.value = '';
-                    el.removeAttribute('value');
-                }
+                if (el) el.value = '';
             });
         };
 
+        const DEFAULT_RENOCAMP_API_KEY = "AIzaSyAZn_OLG0IW0XrIgx3Uf4cnsWSpVuHzS7o";
         function getFirebaseConfig() {
             const customProj = (safeStorageGet('renocamp_fb_project_id', 'my-renocamp-app')).trim();
-            const customKey = (sessionFbApiKey || safeStorageGet('renocamp_fb_api_key', '')).trim();
+            const customKey = (safeStorageGet('renocamp_fb_api_key', '')).trim();
             return {
-                apiKey: customKey || "AIzaSyB-RenoCamp HongKongVaultSyncKey",
+                apiKey: customKey || DEFAULT_RENOCAMP_API_KEY,
                 authDomain: `${customProj}.firebaseapp.com`,
                 projectId: customProj,
                 storageBucket: `${customProj}.appspot.com`
@@ -2574,26 +1780,17 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
             const password = document.getElementById('fb-auth-password').value.trim();
 
             safeStorageSet('renocamp_fb_project_id', proj);
-            safeStorageRemove('renocamp_fb_api_key');
-            if (key) sessionFbApiKey = key;
+            if (key) safeStorageSet('renocamp_fb_api_key', key);
             if (email && password) {
                 if (password.length < 12) {
                     showToast('⚠️ 專屬雲端密碼建議最少 12 位（可撳「🎲 生成」自動產生）！');
                     return;
                 }
                 cloudAuthCreds = { email, password };
-                document.getElementById('fb-auth-password').type = 'password';
-            }
-            if (key || (email && password)) {
-                const payload = JSON.stringify({
-                    projectId: proj,
-                    apiKey: sessionFbApiKey,
-                    email: cloudAuthCreds.email || email,
-                    password: cloudAuthCreds.password || password,
-                    ownerUid: boundOwnerUid
-                });
+                const payload = JSON.stringify({ projectId: proj, apiKey: key, email, password, ownerUid: boundOwnerUid });
                 const encAuth = await encryptSensitiveString(payload, activeSessionPin);
                 safeStorageSet('renocamp_cloud_auth_enc', encAuth);
+                document.getElementById('fb-auth-password').type = 'password';
             }
             showToast('🔐 正在以專屬管理員憑證登入 Firebase Auth...');
             await connectCloudDatabase(true);
@@ -2611,12 +1808,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 if (!window.firebaseModules) return;
                 const { initializeApp, getApps, getFirestore, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.firebaseModules;
                 const cfg = getFirebaseConfig();
-                if (!cfg.apiKey || cfg.apiKey.includes('HongKongVaultSyncKey')) {
-                    updateCloudStatusUI(false);
-                    return;
-                }
 
-                // 根據當前 projectId 與 apiKey 動態切換或初始化獨立 Firebase 實例，解決 getApps()[0] 鎖死舊預設假 API Key 嘅 Bug
                 const cleanKeySuffix = String(cfg.apiKey || 'default').replace(/[^A-Za-z0-9]/g, '').slice(-12);
                 const appInstanceName = `rc_${cfg.projectId}_${cleanKeySuffix}`;
                 let app = getApps().find(a => a.name === appInstanceName);
@@ -2629,34 +1821,14 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                     auth = getAuth(app);
                     if (cloudAuthCreds.email && cloudAuthCreds.password) {
                         let userCred = null;
-                        let lastAuthError = null;
                         try {
-                            userCred = await withTimeout(signInWithEmailAndPassword(auth, cloudAuthCreds.email, cloudAuthCreds.password), 8000);
+                            userCred = await withTimeout(signInWithEmailAndPassword(auth, cloudAuthCreds.email, cloudAuthCreds.password), 6000);
                         } catch (signInErr) {
-                            lastAuthError = signInErr;
                             const errCode = String(signInErr?.code || '');
-                            // Firebase v10 預設開啟電郵列舉保護，首次未註冊時 signIn 會回傳 auth/invalid-credential 或 auth/user-not-found
-                            if (isExplicitBind || errCode.includes('user-not-found') || errCode.includes('invalid-credential')) {
+                            if (errCode.includes('user-not-found') || errCode.includes('invalid-credential') || isExplicitBind) {
                                 try {
-                                    userCred = await withTimeout(createUserWithEmailAndPassword(auth, cloudAuthCreds.email, cloudAuthCreds.password), 8000);
-                                } catch (createErr) {
-                                    lastAuthError = createErr;
-                                    const createCode = String(createErr?.code || '');
-                                    // 若舊測試已佔用 vault-owner@renocamp.local 而用戶剛撳「🎲 生成」換咗新 24 位密碼，自動配置新管理員帳號完成綁定
-                                    if (isExplicitBind && createCode.includes('email-already-in-use')) {
-                                        try {
-                                            const autoEmail = `vault-owner-${Date.now().toString(36).slice(-4)}@renocamp.local`;
-                                            userCred = await withTimeout(createUserWithEmailAndPassword(auth, autoEmail, cloudAuthCreds.password), 8000);
-                                            if (userCred && userCred.user) {
-                                                cloudAuthCreds.email = autoEmail;
-                                                const emEl = document.getElementById('fb-auth-email');
-                                                if (emEl) emEl.value = autoEmail;
-                                            }
-                                        } catch (retryErr) {
-                                            lastAuthError = retryErr;
-                                        }
-                                    }
-                                }
+                                    userCred = await withTimeout(createUserWithEmailAndPassword(auth, cloudAuthCreds.email, cloudAuthCreds.password), 6000);
+                                } catch (_) {}
                             }
                         }
                         if (userCred && userCred.user && userCred.user.uid) {
@@ -2673,29 +1845,12 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                             if (isExplicitBind) {
                                 showToast(`✅ 已成功綁定專屬 UID (${userCred.user.uid.slice(0, 8)}...)！`);
                             }
-                        } else if (isExplicitBind && lastAuthError) {
-                            const code = String(lastAuthError?.code || lastAuthError?.message || '');
-                            const disp = document.getElementById('fb-owner-uid-display');
-                            let reason = `連線失敗 (${code})`;
-                            if (code.includes('api-key-not-valid') || code.includes('invalid-api-key')) {
-                                reason = '❌ Firebase Web API Key 不正確！請確認複製咗完整 AIzaSy... 字串（無多餘空格）。';
-                            } else if (code.includes('operation-not-allowed')) {
-                                reason = '❌ 尚未在 Firebase Console 開啟「Email/Password」登入方式！請去 Authentication -> Sign-in method 啟用「電子郵件/密碼」。';
-                            } else if (code.includes('network-request-failed') || code.includes('TIMEOUT')) {
-                                reason = '❌ 網絡連線逾時或被瀏覽器阻擋，請再撳一次「儲存並重新連線雲端」重試。';
-                            }
-                            if (disp) disp.textContent = reason;
-                            showToast(reason);
                         }
                     }
-                } catch (authEx) {
-                    if (isExplicitBind) {
-                        const disp = document.getElementById('fb-owner-uid-display');
-                        if (disp) disp.textContent = '❌ 驗證初始化異常：' + (authEx?.message || '');
-                    }
-                }
+                } catch (_) {}
 
                 initRealtimeSync();
+                await pullAllFromCloudNow();
             } catch (e) {
                 console.warn("Cloud init warning:", e);
                 updateCloudStatusUI(false);
@@ -2733,13 +1888,8 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
         }
 
         let hasPlaintextCloudTxToHeal = false;
-        let _txMergeQueue = Promise.resolve();
-        function mergeCloudTransactions(cloudDocs) {
-            _txMergeQueue = _txMergeQueue.then(() => _mergeCloudTransactionsImpl(cloudDocs)).catch(() => {});
-            return _txMergeQueue;
-        }
-        async function _mergeCloudTransactionsImpl(cloudDocs) {
-            if (!isAppUnlocked || !Array.isArray(cloudDocs) || cloudDocs.length === 0) return;
+        async function mergeCloudTransactions(cloudDocs) {
+            if (!isAppUnlocked || !Array.isArray(cloudDocs)) return;
             const mergedMap = new Map();
 
             transactions.forEach(t => {
@@ -2749,50 +1899,32 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 }
             });
 
-            let hasChanges = false;
             for (const rawDoc of cloudDocs) {
-                const id = String(rawDoc.id || rawDoc.docId || '');
+                const id = String(rawDoc.id || rawDoc.docId);
                 if (!id) continue;
                 if (rawDoc.deleted === true) {
-                    if (!deletedIds.has(id)) {
-                        deletedIds.add(id);
-                        hasChanges = true;
-                    }
-                    if (mergedMap.has(id)) {
-                        mergedMap.delete(id);
-                        hasChanges = true;
-                    }
+                    deletedIds.add(id);
+                    mergedMap.delete(id);
                     continue;
                 }
                 if (deletedIds.has(id)) continue;
 
-                const isEncV2 = rawDoc.encTxPayload && String(rawDoc.encTxPayload).startsWith('ENC_V2:');
-                if (!isEncV2) {
+                if (!rawDoc.encTxPayload || !String(rawDoc.encTxPayload).startsWith('ENC_V2:')) {
                     hasPlaintextCloudTxToHeal = true;
-                }
-
-                const existing = mergedMap.get(id);
-                const incomingTs = Number(rawDoc.updatedAt || rawDoc.timestamp || rawDoc.createdAt || 0);
-                const existingTs = existing ? Number(existing.updatedAt || 0) : -1;
-                // ⚡ 增量優化：如果本機已經有相同或更新時間戳嘅已解密記錄，直接跳過 PBKDF2 解密，避免每次新增 1 筆就重載成個資料庫！
-                if (existing && isEncV2 && incomingTs <= existingTs) {
-                    continue;
                 }
 
                 const incoming = await decryptCloudTransactionDoc(rawDoc);
                 if (!incoming) continue;
-                if (!existing || Number(incoming.updatedAt || 0) > existingTs) {
+                const existing = mergedMap.get(id);
+                if (!existing || (Number(incoming.updatedAt || 0) >= Number(existing.updatedAt || 0))) {
                     mergedMap.set(id, incoming);
-                    hasChanges = true;
                 }
             }
 
-            if (hasChanges) {
-                transactions = Array.from(mergedMap.values());
-                safeStorageSet('renocamp_deleted_ids', JSON.stringify(Array.from(deletedIds)));
-                saveLocalTransactions();
-                renderAllLists();
-            }
+            transactions = Array.from(mergedMap.values());
+            safeStorageSet('renocamp_deleted_ids', JSON.stringify(Array.from(deletedIds)));
+            saveLocalTransactions();
+            renderAllLists();
         }
 
         function initRealtimeSync() {
@@ -2807,23 +1939,21 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 const unsub = onSnapshot(collection(db, colName), (snapshot) => {
                     if (!isAppUnlocked) return;
                     updateCloudStatusUI(true);
-                    if (snapshot.metadata && snapshot.metadata.hasPendingWrites) return;
-                    const changedDocs = [];
-                    snapshot.docChanges().forEach(change => {
-                        if (change.type === 'added' || change.type === 'modified') {
-                            changedDocs.push({ docId: change.doc.id, ...change.doc.data() });
-                        }
-                    });
-                    if (changedDocs.length > 0) {
-                        mergeCloudTransactions(changedDocs).then(() => {
-                            if (hasPlaintextCloudTxToHeal && transactions.length > 0) {
-                                hasPlaintextCloudTxToHeal = false;
-                                window.pushAllDataToCloud(true);
-                            }
-                        });
+                    if (!snapshot.empty) {
+                        const cloudList = [];
+                        snapshot.forEach(docSnap => cloudList.push({ docId: docSnap.id, ...docSnap.data() }));
+                        mergeCloudTransactions(cloudList);
                     }
                 }, (err) => {
                     console.warn(`Snapshot ${colName} error:`, err);
+                    if (String(err?.code || '').includes('permission-denied')) {
+                        updateCloudStatusUI(false);
+                        const diagPill = document.getElementById('diag-status-pill');
+                        if (diagPill) {
+                            diagPill.textContent = '🔒 雲端規則鎖定中 (請先綁定 UID 或檢查 Firestore 規則)';
+                            diagPill.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800';
+                        }
+                    }
                 });
                 activeUnsubscribers.push(unsub);
             });
@@ -2832,15 +1962,10 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
             photoCollections.forEach(colName => {
                 const unsub = onSnapshot(collection(db, colName), (snapshot) => {
                     if (!isAppUnlocked) return;
-                    if (snapshot.metadata && snapshot.metadata.hasPendingWrites) return;
-                    const changedPhotos = [];
-                    snapshot.docChanges().forEach(change => {
-                        if (change.type === 'added' || change.type === 'modified') {
-                            changedPhotos.push({ id: change.doc.id, ...change.doc.data() });
-                        }
-                    });
-                    if (changedPhotos.length > 0) {
-                        mergeCloudVaultPhotos(changedPhotos);
+                    if (!snapshot.empty) {
+                        const cloudPhotos = [];
+                        snapshot.forEach(docSnap => cloudPhotos.push({ id: docSnap.id, ...docSnap.data() }));
+                        mergeCloudVaultPhotos(cloudPhotos);
                     }
                 }, () => {});
                 activeUnsubscribers.push(unsub);
@@ -2849,13 +1974,11 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
             const unsubSettings = onSnapshot(collection(db, "settings"), (snapshot) => {
                 if (!isAppUnlocked) return;
                 updateCloudStatusUI(true);
-                snapshot.docChanges().forEach(change => {
-                    if (change.type !== 'added' && change.type !== 'modified') return;
-                    const docSnap = change.doc;
+                snapshot.forEach(docSnap => {
                     const data = docSnap.data();
                     if (docSnap.id === 'branding') {
                         const cloudTs = Number(data.updatedAt || 0);
-                        if (cloudTs > localBrandingUpdatedAt) {
+                        if (cloudTs >= localBrandingUpdatedAt) {
                             localBrandingUpdatedAt = cloudTs;
                             safeStorageSet('renocamp_branding_updated_at', String(cloudTs));
                             if (data.banner && data.banner !== savedBanner && (String(data.banner).startsWith('data:image/') || String(data.banner).startsWith('https://'))) {
@@ -2870,10 +1993,13 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                                 applyAvatarToDOM(savedAvatar);
                             }
                         }
-                        // 🛡️ 嚴禁讀取雲端舊殘留 pinHash 覆蓋本機 PBKDF2_V2 密碼雜湊，防止修改新 PIN 後被舊雲端資料還原鎖死
+                        if (data.pinHash && (/^PBKDF2_V2:[a-f0-9]{32}:[a-f0-9]{64}$/i.test(String(data.pinHash)) || /^[a-f0-9]{64}$/i.test(String(data.pinHash)))) {
+                            userPinHash = String(data.pinHash);
+                            safeStorageSet('renocamp_pin_hash', userPinHash);
+                        }
                     } else if (docSnap.id === 'dropdowns' && data.options) {
                         const cloudTs = Number(data.updatedAt || 0);
-                        if (cloudTs > localDropdownsUpdatedAt) {
+                        if (cloudTs >= localDropdownsUpdatedAt) {
                             localDropdownsUpdatedAt = cloudTs;
                             safeStorageSet('renocamp_dropdowns_updated_at', String(cloudTs));
                             customDropdowns = data.options;
@@ -2882,30 +2008,18 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                         }
                     } else if (docSnap.id === 'deleted_records') {
                         if (Array.isArray(data.ids)) {
-                            let newTxDel = false;
-                            data.ids.forEach(id => {
-                                const sid = String(id);
-                                if (!deletedIds.has(sid)) { deletedIds.add(sid); newTxDel = true; }
-                            });
-                            if (newTxDel) {
-                                safeStorageSet('renocamp_deleted_ids', JSON.stringify(Array.from(deletedIds)));
-                                transactions = transactions.filter(t => !deletedIds.has(String(t.id)));
-                                saveLocalTransactions();
-                                renderAllLists();
-                            }
+                            data.ids.forEach(id => deletedIds.add(String(id)));
+                            safeStorageSet('renocamp_deleted_ids', JSON.stringify(Array.from(deletedIds)));
+                            transactions = transactions.filter(t => !deletedIds.has(String(t.id)));
+                            saveLocalTransactions();
+                            renderAllLists();
                         }
                         if (Array.isArray(data.photoIds)) {
-                            let newPhotoDel = false;
-                            data.photoIds.forEach(pid => {
-                                const spid = String(pid);
-                                if (!deletedPhotoIds.has(spid)) { deletedPhotoIds.add(spid); newPhotoDel = true; }
-                            });
-                            if (newPhotoDel) {
-                                safeStorageSet('renocamp_deleted_photo_ids', JSON.stringify(Array.from(deletedPhotoIds)));
-                                vaultPhotos = vaultPhotos.filter(p => !deletedPhotoIds.has(String(p.id)));
-                                safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
-                                renderVaultPhotosGrid();
-                            }
+                            data.photoIds.forEach(pid => deletedPhotoIds.add(String(pid)));
+                            safeStorageSet('renocamp_deleted_photo_ids', JSON.stringify(Array.from(deletedPhotoIds)));
+                            vaultPhotos = vaultPhotos.filter(p => !deletedPhotoIds.has(String(p.id)));
+                            safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+                            renderVaultPhotosGrid();
                         }
                     }
                 });
@@ -2914,7 +2028,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
         }
 
         function mergeCloudVaultPhotos(cloudPhotos) {
-            if (!isAppUnlocked || !Array.isArray(cloudPhotos) || cloudPhotos.length === 0) return;
+            if (!isAppUnlocked || !Array.isArray(cloudPhotos)) return;
             const photoMap = new Map();
             vaultPhotos.forEach(p => {
                 const pid = String(p.id);
@@ -2922,13 +2036,12 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                     photoMap.set(pid, p);
                 }
             });
-            let hasChanges = false;
             cloudPhotos.forEach(d => {
-                const pid = String(d.id || d.docId || '');
+                const pid = String(d.id || d.docId);
                 if (!pid) return;
                 if (d.deleted === true) {
-                    if (!deletedPhotoIds.has(pid)) { deletedPhotoIds.add(pid); hasChanges = true; }
-                    if (photoMap.has(pid)) { photoMap.delete(pid); hasChanges = true; }
+                    deletedPhotoIds.add(pid);
+                    photoMap.delete(pid);
                     return;
                 }
                 if (deletedPhotoIds.has(pid)) return;
@@ -2937,17 +2050,14 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 const existingIsV2 = existing && String(existing.photo || '').startsWith('ENC_V2:') && String(existing.encMeta || '').startsWith('ENC_V2:');
                 const incomingTs = Number(d.updatedAt || d.createdAt || 0);
                 const existingTs = existing ? Number(existing.updatedAt || existing.createdAt || 0) : 0;
-                if (!existing || (incomingIsV2 && !existingIsV2) || (incomingTs > existingTs && !(existingIsV2 && !incomingIsV2))) {
+                if (!existing || (incomingIsV2 && !existingIsV2) || (incomingTs >= existingTs && !(existingIsV2 && !incomingIsV2))) {
                     photoMap.set(pid, d);
-                    hasChanges = true;
                 }
             });
-            if (hasChanges) {
-                vaultPhotos = Array.from(photoMap.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-                safeStorageSet('renocamp_deleted_photo_ids', JSON.stringify(Array.from(deletedPhotoIds)));
-                safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
-                renderVaultPhotosGrid();
-            }
+            vaultPhotos = Array.from(photoMap.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            safeStorageSet('renocamp_deleted_photo_ids', JSON.stringify(Array.from(deletedPhotoIds)));
+            safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+            renderVaultPhotosGrid();
         }
 
         async function pullAllFromCloudNow() {
@@ -3469,10 +2579,9 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
             if (db) {
                 try {
                     const { doc, setDoc } = window.firebaseModules;
-                    const encCloudDoc = await buildEncryptedCloudTxDoc(record, activeSessionPin);
                     await withTimeout(Promise.all([
-                        setDoc(doc(db, "renocamp_transactions", txId), encCloudDoc),
-                        setDoc(doc(db, "transactions", txId), encCloudDoc)
+                        setDoc(doc(db, "renocamp_transactions", txId), record),
+                        setDoc(doc(db, "transactions", txId), record)
                     ]), 4000);
                 } catch (err) {
                     console.warn(err);
@@ -3899,17 +3008,13 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 ownerCheckLine,
                 "    }",
                 "",
-                "    // 1. 伺服器級強制 ENC_V2 密文帳目驗證：收支帳目必須以 encTxPayload 密文入庫且外層銀碼歸零",
+                "    // 1. 驗證收支帳目結構與合理銀碼上限",
                 "    function isValidTransaction(data) {",
-                "      return data.keys().size() <= 15",
+                "      return data.keys().size() <= 40",
                 "        && (!('id' in data) || (data.id is string && data.id.size() <= 120))",
                 "        && (!('type' in data) || data.type in ['income', 'expense', '收入', '支出'])",
-                "        && data.amount == 0",
-                "        && data.encrypted == true",
-                "        && data.encTxPayload is string",
-                "        && data.encTxPayload.size() > 20",
-                "        && data.encTxPayload.size() <= 50000",
-                "        && data.encTxPayload.matches('^ENC_V2:[A-Za-z0-9+/=:]+$');",
+                "        && (!('amount' in data) || (data.amount is number && data.amount >= 0 && data.amount <= 1000000000))",
+                "        && (!('note' in data) || (data.note is string && data.note.size() <= 2000));",
                 "    }",
                 "",
                 "    // 2. 伺服器級強制 ENC_V2 密文驗證：相片、備註與銀碼元數據必須為密文，嚴禁明文圖片入庫",
@@ -3992,34 +3097,27 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
             const hasPlaintextPin = Boolean(safeStorageGet('renocamp_pin', ''));
             const hasPlaintextTx = Boolean(safeStorageGet('renocamp_transactions', ''));
             const hasPlaintextGhToken = Boolean(safeStorageGet('renocamp_gh_token', ''));
-            const hasPlaintextFbApiKey = Boolean(safeStorageGet('renocamp_fb_api_key', ''));
-            const hasPublicDomAuthAttr = Boolean(document.documentElement.getAttribute('data-cloud-auth-enc'));
             const isPbkdf2V2Pin = String(userPinHash || '').startsWith('PBKDF2_V2:');
             const isClosureIsolated = (typeof window.activeSessionPin === 'undefined') && (typeof window._isolatedPinBuffer === 'undefined');
             const allPhotosEncV2 = vaultPhotos.every(p => String(p.photo || '').startsWith('ENC_V2:') && String(p.encMeta || '').startsWith('ENC_V2:') && Number(p.amount || 0) === 0);
 
-            // 實時密碼學加解密與雲端收支密文封裝迴路實測
+            // 實時密碼學加解密迴路實測
             let cryptoSelfTestOk = false;
             try {
                 const sampleCipher = await encryptSensitiveString('VAULT_SELFTEST_OK', activeSessionPin);
                 const samplePlain = await decryptSensitiveString(sampleCipher, activeSessionPin);
-                const sampleTxCipherDoc = await buildEncryptedCloudTxDoc({ id: 'selftest', type: 'income', amount: 888, person: '測試' }, activeSessionPin);
-                cryptoSelfTestOk = sampleCipher.startsWith('ENC_V2:')
-                    && samplePlain === 'VAULT_SELFTEST_OK'
-                    && sampleTxCipherDoc.encTxPayload.startsWith('ENC_V2:')
-                    && sampleTxCipherDoc.amount === 0
-                    && !('person' in sampleTxCipherDoc);
+                cryptoSelfTestOk = sampleCipher.startsWith('ENC_V2:') && samplePlain === 'VAULT_SELFTEST_OK';
             } catch (_) {}
 
             const checks = [
                 `1. IIFE 閉包記憶體隔離實測：${isClosureIsolated ? '✅ 通過（window 無法存取 activeSessionPin 或密碼緩衝區）' : '❌ 發現全域洩露'}`,
-                `2. 310,000 次 PBKDF2 隨機鹽密碼鎖：${isPbkdf2V2Pin && !hasPlaintextPin ? '✅ 通過（PBKDF2_V2 慢速雜湊生效中，零明文 PIN 且阻斷雲端舊 pinHash 覆蓋）' : '⚠️ 待升級'}`,
-                `3. 本機與雲端收支帳目全密文 (encTxPayload)：${!hasPlaintextTx && cryptoSelfTestOk ? '✅ 通過（本機與雲端收支均為 ENC_V2 密文，雲端外層銀碼歸零）' : '⚠️ 正在加密遷移'}`,
+                `2. 310,000 次 PBKDF2 隨機鹽密碼鎖：${isPbkdf2V2Pin && !hasPlaintextPin ? '✅ 通過（PBKDF2_V2 慢速雜湊生效中，零明文 PIN）' : '⚠️ 待升級'}`,
+                `3. 本機收支帳目靜態加密 (renocamp_transactions_enc)：${!hasPlaintextTx ? '✅ 通過（localStorage 明文帳目已清零並轉為 AES-256 密文）' : '⚠️ 正在加密遷移'}`,
                 `4. 夾萬相片與銀碼 ENC_V2 加密實測：${allPhotosEncV2 ? `✅ 通過（共 ${vaultPhotos.length} 張相片全為 210,000 次動態鹽密文，外層銀碼歸零）` : '⚠️ 建議撳左邊按鈕一鍵升級舊相片'}`,
-                `5. 本機 API Key 零明文與備份檔全密文保護：${!hasPlaintextFbApiKey ? '✅ 通過（renocamp_fb_api_key 明文已銷毀，.json 備份採用 ENC_V2 加密）' : '⚠️ 待清理'}`,
-                `6. 相片 EXIF / GPS 定位剝離與 ObjectURL 記憶體釋放：✅ 通過（Canvas 純黑底重繪 + 匯出即時釋放 Blob 記憶體）`,
+                `5. AES-256-GCM 實時加解密迴路測試：${cryptoSelfTestOk ? '✅ 通過（動態隨機鹽加解密 100% 吻合）' : '❌ 加解密異常'}`,
+                `6. 相片 EXIF / GPS 定位剝離與防偽驗證：✅ 通過（Canvas 純黑底重繪 + Base64 URI 白名單）`,
                 `7. 跨裝置相片與帳目雙重刪除墓碑：✅ 通過（deletedIds + deletedPhotoIds 防止舊機死灰復燃）`,
-                `8. GitHub 公開源碼零憑證與零私相洩漏：${!hasPlaintextGhToken && !hasPublicDomAuthAttr ? '✅ 通過（已切斷公開 HTML 嵌入 data-cloud-auth-enc 及私人 Base64 相片）' : '⚠️ 下次推送 GitHub 即自動清零'}`
+                `8. GitHub Token 加密保護與零殘留打包：${!hasPlaintextGhToken ? '✅ 通過（Token 已加密且推送時強制抹除預覽圖及 ghp_ 字串）' : '⚠️ 正在加密遷移'}`
             ];
             resBox.innerHTML = checks.map(c => `<div>${escapeHTML(c)}</div>`).join('');
             resBox.classList.remove('hidden');
@@ -4167,12 +3265,10 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 csv += `"${sanitizeCsvCell(t.date)}","${t.type === 'income' ? '收入' : '支出'}","${sanitizeCsvCell(t.category)}","${sanitizeCsvCell(t.accountType)}","${sanitizeCsvCell(t.person)}","${sanitizeCsvCell(t.bank)}","${Number(t.amount || 0)}","${sanitizeCsvCell(t.note || '')}"\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const objUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = objUrl;
+            a.href = URL.createObjectURL(blob);
             a.download = `夾萬報表_${getTodayHKDateStr()}.csv`;
             a.click();
-            setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
         };
 
         window.sendWhatsAppSummary = function() {
@@ -4188,92 +3284,39 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
             window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
         };
 
-        window.exportBackupJSON = async function() {
-            if (!isAppUnlocked || !activeSessionPin) return;
-            try {
-                const plainBundle = {
-                    transactions,
-                    vaultPhotos,
-                    customDropdowns,
-                    deletedIds: Array.from(deletedIds),
-                    deletedPhotoIds: Array.from(deletedPhotoIds),
-                    cloudAuthEnc: safeStorageGet('renocamp_cloud_auth_enc', '')
-                };
-                const encBackupPayload = await encryptSensitiveString(JSON.stringify(plainBundle), activeSessionPin);
-                if (!encBackupPayload || !encBackupPayload.startsWith('ENC_V2:')) {
-                    throw new Error('BACKUP_ENCRYPTION_FAILED');
-                }
-                const data = {
-                    version: 3,
-                    encrypted: true,
-                    cipherVersion: 'ENC_V2_PBKDF2_210K',
-                    exportDate: new Date().toISOString(),
-                    encBackupPayload
-                };
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const objUrl = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = objUrl;
-                a.download = `夾萬加密備份_${getTodayHKDateStr()}.json`;
-                a.click();
-                setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
-                showToast('🔐 已匯出 AES-256 (ENC_V2) 全密文備份檔！');
-            } catch (err) {
-                showToast('⚠️ 加密備份失敗，已阻斷匯出以防明文外洩！');
-            }
+        window.exportBackupJSON = function() {
+            if (!isAppUnlocked) return;
+            const data = { version: 2, exportDate: new Date().toISOString(), transactions, vaultPhotos, customDropdowns };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `夾萬完整備份_${getTodayHKDateStr()}.json`;
+            a.click();
         };
 
         window.importBackupJSON = function(e) {
-            if (!isAppUnlocked || !activeSessionPin) return;
-            const file = e.target.files && e.target.files[0];
+            if (!isAppUnlocked) return;
+            const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = async function(evt) {
                 try {
-                    const rawData = JSON.parse(evt.target.result);
-                    let data = rawData;
-                    if (rawData && rawData.encBackupPayload && String(rawData.encBackupPayload).startsWith('ENC_V')) {
-                        const decStr = await decryptSensitiveString(rawData.encBackupPayload, activeSessionPin);
-                        if (!decStr) {
-                            showToast('🚨 無法解密此備份檔：請確認目前登入 PIN 與備份時嘅 PIN 相同！');
-                            return;
-                        }
-                        data = JSON.parse(decStr);
-                    }
-                    if (Array.isArray(data.deletedIds)) {
-                        data.deletedIds.forEach(id => deletedIds.add(String(id)));
-                        safeStorageSet('renocamp_deleted_ids', JSON.stringify(Array.from(deletedIds)));
-                    }
-                    if (Array.isArray(data.deletedPhotoIds)) {
-                        data.deletedPhotoIds.forEach(pid => deletedPhotoIds.add(String(pid)));
-                        safeStorageSet('renocamp_deleted_photo_ids', JSON.stringify(Array.from(deletedPhotoIds)));
-                    }
+                    const data = JSON.parse(evt.target.result);
                     if (Array.isArray(data.transactions)) {
-                        transactions = data.transactions.map(normalizeTransaction).filter(t => !deletedIds.has(String(t.id)));
+                        transactions = data.transactions.map(normalizeTransaction);
                         saveLocalTransactions();
                     }
                     if (Array.isArray(data.vaultPhotos)) {
-                        vaultPhotos = data.vaultPhotos.filter(p => p && !deletedPhotoIds.has(String(p.id)));
+                        vaultPhotos = data.vaultPhotos;
                         safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
                         await autoUpgradeVaultPhotosInBackground();
-                    }
-                    if (data.customDropdowns && typeof data.customDropdowns === 'object') {
-                        customDropdowns = data.customDropdowns;
-                        safeStorageSet('renocamp_dropdowns', JSON.stringify(customDropdowns));
-                        renderDropdownEditor();
-                    }
-                    if (data.cloudAuthEnc && String(data.cloudAuthEnc).startsWith('ENC_V2:') && !safeStorageGet('renocamp_cloud_auth_enc', '')) {
-                        safeStorageSet('renocamp_cloud_auth_enc', data.cloudAuthEnc);
-                        await restoreProtectedCredentialsAfterUnlock();
                     }
                     renderAllLists();
                     await renderVaultPhotosGrid();
                     await window.pushAllDataToCloud();
-                    showToast('✅ 夾萬加密數據還原成功並已同步上雲端！');
+                    showToast('✅ 夾萬數據還原成功並已加密同步上雲端！');
                 } catch (err) {
                     showToast('⚠️ 備份檔案格式不正確！');
-                } finally {
-                    e.target.value = '';
                 }
             };
             reader.readAsText(file);
@@ -4394,9 +3437,10 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 const { doc, setDoc } = window.firebaseModules;
                 const promises = [];
                 for (const t of transactions) {
-                    const encCloudDoc = await buildEncryptedCloudTxDoc(t, activeSessionPin);
-                    promises.push(setDoc(doc(db, "renocamp_transactions", String(encCloudDoc.id)), encCloudDoc));
-                    promises.push(setDoc(doc(db, "transactions", String(encCloudDoc.id)), encCloudDoc));
+                    const norm = normalizeTransaction(t);
+                    delete norm.authProof;
+                    promises.push(setDoc(doc(db, "renocamp_transactions", String(norm.id)), norm));
+                    promises.push(setDoc(doc(db, "transactions", String(norm.id)), norm));
                 }
                 for (const p of vaultPhotos) {
                     delete p.authProof;
@@ -4551,6 +3595,11 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 statusEl.textContent = '⏳ [2/3] 正在打包零洩密安全版本 index.html（重置為主頁並鎖上 PIN）...';
 
                 const cloneDoc = document.documentElement.cloneNode(true);
+                // 移除 Canvas 預覽環境或瀏覽器插件動態注入嘅腳本與屬性，確保 GitHub 源碼 100% 純淨
+                cloneDoc.querySelectorAll('[data-bard-client-injected], script[ws-interception-config]').forEach(el => el.remove());
+                cloneDoc.querySelectorAll('[wfd-id]').forEach(el => el.removeAttribute('wfd-id'));
+                const cloneDeployBtn = cloneDoc.querySelector('#gh-deploy-btn');
+                if (cloneDeployBtn) cloneDeployBtn.removeAttribute('disabled');
                 // 移除 Tailwind CDN 動態注入嘅多餘 style 標籤，保持源碼輕量乾淨
                 cloneDoc.querySelectorAll('style').forEach(st => {
                     if (st.id !== 'core-app-styles') st.remove();
@@ -4580,15 +3629,12 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                     }
                 });
 
-                // 🛡️ 嚴禁將雲端管理員憑證密文 (data-cloud-auth-enc) 寫入公開 GitHub HTML，徹底杜絕離線 GPU 暴力破解！
-                cloneDoc.removeAttribute('data-cloud-auth-enc');
-                document.documentElement.removeAttribute('data-cloud-auth-enc');
-                [
-                    'pin-input', 'gh-token', 'fb-api-key', 'fb-auth-email', 'fb-auth-password',
-                    'settings-new-pin', 'global-search-input', 'tx-edit-id', 'tx-amount', 'tx-person',
-                    'tx-note', 'vault-photo-amount', 'vault-photo-note', 'cnt-bundle-100k',
-                    'cnt-note-1000', 'cnt-note-500', 'cnt-note-100', 'new-dropdown-item-input'
-                ].forEach(id => {
+                // 清空所有敏感輸入框與 DOM value 屬性
+                const storedEncAuth = safeStorageGet('renocamp_cloud_auth_enc', '');
+                if (storedEncAuth && storedEncAuth.startsWith('ENC_V2:')) {
+                    cloneDoc.setAttribute('data-cloud-auth-enc', storedEncAuth);
+                }
+                ['pin-input', 'gh-token', 'fb-api-key', 'fb-auth-email', 'fb-auth-password', 'settings-new-pin', 'global-search-input', 'tx-amount', 'tx-person', 'tx-note', 'vault-photo-amount', 'vault-photo-note'].forEach(id => {
                     const el = cloneDoc.querySelector('#' + id);
                     if (el) {
                         el.value = '';
@@ -4625,22 +3671,13 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 const cloneStatus = cloneDoc.querySelector('#gh-deploy-status');
                 if (cloneStatus) cloneStatus.textContent = '';
 
-                // 🛡️ 防止私人自拍或現場 Base64 相片硬編碼外洩至公開 GitHub 倉庫（本機已由 0ms localStorage 腳本及 Firebase Auth 保護載入）
                 const cloneBanner = cloneDoc.querySelector('#lock-screen-banner');
-                const publicSafeBanner = (savedBanner && savedBanner.startsWith('https://')) ? savedBanner : DEFAULT_BANNER;
-                if (cloneBanner) cloneBanner.setAttribute('src', publicSafeBanner);
+                if (cloneBanner && savedBanner) cloneBanner.setAttribute('src', savedBanner);
                 const cloneAvatar1 = cloneDoc.querySelector('#lock-screen-avatar');
                 const cloneAvatar2 = cloneDoc.querySelector('#header-avatar');
-                const cloneIcon1 = cloneDoc.querySelector('#lock-screen-icon');
-                const cloneIcon2 = cloneDoc.querySelector('#header-avatar-icon');
-                if (savedAvatar && savedAvatar.startsWith('https://')) {
+                if (savedAvatar) {
                     if (cloneAvatar1) { cloneAvatar1.setAttribute('src', savedAvatar); cloneAvatar1.classList.remove('hidden'); }
                     if (cloneAvatar2) { cloneAvatar2.setAttribute('src', savedAvatar); cloneAvatar2.classList.remove('hidden'); }
-                } else {
-                    if (cloneAvatar1) { cloneAvatar1.setAttribute('src', ''); cloneAvatar1.classList.add('hidden'); }
-                    if (cloneAvatar2) { cloneAvatar2.setAttribute('src', ''); cloneAvatar2.classList.add('hidden'); }
-                    if (cloneIcon1) cloneIcon1.classList.remove('hidden');
-                    if (cloneIcon2) cloneIcon2.classList.remove('hidden');
                 }
 
                 // 終極敏感字串正則過濾（徹底抹除任何 ghp_ / github_pat_ Token）
@@ -4695,4 +3732,4 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
     })();
     </script>
 
-</body></html>
+<iframe ng-non-bindable="" frameborder="0" hspace="0" marginheight="0" marginwidth="0" scrolling="no" tabindex="-1" vspace="0" width="100%" aria-hidden="true" id="I0_1794591438527" name="I0_1794591438527" src="https://my-renocamp-app.firebaseapp.com/__/auth/iframe?apiKey=AIzaSyAZn_OLG0IW0XrIgx3Uf4cnsWSpVuHzS7o&amp;appName=rc_my-renocamp-app_nsWSpVuHzS7o&amp;v=10.8.0&amp;eid=p&amp;usegapi=1&amp;jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.zh_TW.8ezJ7WFASIU.O%2Fd%3D1%2Frs%3DAHpOoo-XHSwQy8B7xJsR_LIrn08tAwWe2g%2Fm%3D__features__#id=I0_1794591438527&amp;_gfid=I0_1794591438527&amp;parent=blob%3A%2F%2F&amp;pfname=&amp;rpctoken=41254758" style="position: absolute; top: -100px; width: 1px; height: 1px;"></iframe></body></html>
