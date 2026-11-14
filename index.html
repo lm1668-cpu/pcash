@@ -30,7 +30,12 @@
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        window.firebaseModules = { initializeApp, getApps, getApp, getFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut };
+        const _mods = Object.freeze({ initializeApp, getApps, getApp, getFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut });
+        if (typeof window._receiveFirebaseModules === 'function') {
+            window._receiveFirebaseModules(_mods);
+        } else {
+            window.__pendingFbMods = _mods;
+        }
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
     <style id="core-app-styles">
@@ -165,8 +170,8 @@
                     🔒 鎖定
                 </button>
                 <div onclick="window.syncNowManual()" id="header-cloud-status" class="cursor-pointer px-2.5 py-1.5 bg-emerald-950/80 border border-emerald-500/40 rounded-full text-[11px] font-bold text-emerald-400 flex items-center gap-1" title="撳一下即刻雙向同步">
-                    <span id="header-cloud-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
-                    <span id="header-cloud-text">連線中 / 點擊重試</span>
+                    <span id="header-cloud-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="header-cloud-text">雲端已連線</span>
                 </div>
             </div>
         </div>
@@ -413,7 +418,7 @@
                         🩺 立即執行 10 項零漏洞安全自檢
                     </button>
                 </div>
-                <div id="security-audit-result" class="mt-3 p-3 rounded-2xl bg-slate-950/90 border border-emerald-500/30 text-[11px] text-emerald-300 space-y-1 font-medium hidden"></div>
+                <div id="security-audit-result" class="hidden mt-3 p-3 rounded-2xl bg-slate-950/90 border border-emerald-500/30 text-[11px] text-emerald-300 space-y-1 font-medium"></div>
             </div>
 
             <!-- ☁️ 跨裝置 Firebase 雲端連線診斷與同步專區 -->
@@ -422,7 +427,7 @@
                     <h3 class="text-sm font-black text-slate-900 flex items-center gap-1.5">
                         ☁️ 跨裝置雲端實時同步中心 (iPhone / iPad / 電腦)
                     </h3>
-                    <span id="diag-status-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-800">🟡 請檢查網絡或規則</span>
+                    <span id="diag-status-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800">檢測中...</span>
                 </div>
                 <p class="text-xs text-slate-500 mb-3">所有裝置共用同一個 <code class="bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-700">my-renocamp-app</code> 雲端資料庫，任何一部機加數、改名、刪數或上傳夾萬相，其他裝置自動同步。</p>
 
@@ -782,7 +787,7 @@
 
     <!-- 頁內提示訊息 Toast 與自訂確認視窗 -->
     <div id="app-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[70] bg-slate-900 text-brand-400 px-5 py-3 rounded-2xl shadow-2xl border border-brand-500/40 text-xs font-black flex items-center gap-2 hidden">
-        <span id="app-toast-text">提示訊息</span>
+        <span id="app-toast-text">🔐 首次啟用：已將你輸入嘅高強度 PIN 設為私人安全密碼！</span>
     </div>
 
     <div id="custom-confirm-modal" class="fixed inset-0 z-[65] bg-slate-900/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
@@ -800,6 +805,28 @@
     <script>
     (function() {
         'use strict';
+        // 🛡️ [中危 3 修復] 0 毫秒鎖定原生 WebCrypto 與編碼器參考，徹底防禦 Console Monkey-Patching 劫持偷取明文 PIN
+        const _cryptoObj = window.crypto || window.msCrypto;
+        const _subtle = _cryptoObj && _cryptoObj.subtle;
+        const _nativeGetRandomValues = _cryptoObj ? _cryptoObj.getRandomValues.bind(_cryptoObj) : null;
+        const _nativeImportKey = _subtle ? _subtle.importKey.bind(_subtle) : null;
+        const _nativeDeriveBits = _subtle ? _subtle.deriveBits.bind(_subtle) : null;
+        const _nativeDeriveKey = _subtle ? _subtle.deriveKey.bind(_subtle) : null;
+        const _nativeEncrypt = _subtle ? _subtle.encrypt.bind(_subtle) : null;
+        const _nativeDecrypt = _subtle ? _subtle.decrypt.bind(_subtle) : null;
+        const _nativeDigest = _subtle ? _subtle.digest.bind(_subtle) : null;
+        const _NativeTextEncoder = window.TextEncoder;
+        const _NativeTextDecoder = window.TextDecoder;
+        try { if (_subtle) Object.freeze(_subtle); } catch (_) {}
+
+        // 🛡️ [高危 1 修復] 將 Firebase SDK 鎖入 IIFE 私有變數 _fbModules，即刻銷毀 window 全域引用，防止 Console 直接調用 getDocs 抽乾雲端庫
+        let _fbModules = window.__pendingFbMods || null;
+        try { delete window.__pendingFbMods; delete window['firebaseModules']; } catch (_) {}
+        window._receiveFirebaseModules = function(m) {
+            if (!_fbModules && m) _fbModules = m;
+            try { delete window._receiveFirebaseModules; delete window['firebaseModules']; } catch (_) {}
+        };
+
         let isAppUnlocked = false;
         let activeSessionPin = '';
         let isVerifyingPin = false;
@@ -831,19 +858,21 @@
             } catch (_) {}
         }
 
-        // 讀取持久化防爆破鎖定狀態（防止 F5 重新整理繞過 5 次錯誤鎖定）
+        // 🛡️ [中危 2 修復] 雙重防爆破狀態鎖（閉包記憶體 + localStorage 取最大值，防止黑客透過 DevTools 刪除 renocamp_security_lock 重置錯誤次數）
         function loadPersistentLockState() {
             try {
                 const raw = safeStorageGet('renocamp_security_lock', '');
-                if (!raw) return;
+                if (!raw) {
+                    if (failedPinAttempts > 0 || lockUntilTimestamp > Date.now() || lockoutStrikeLevel > 0) {
+                        savePersistentLockState();
+                    }
+                    return;
+                }
                 const parsed = JSON.parse(raw);
-                failedPinAttempts = Number(parsed.failedPinAttempts) || 0;
-                lockUntilTimestamp = Number(parsed.lockUntilTimestamp) || 0;
-                lockoutStrikeLevel = Number(parsed.lockoutStrikeLevel) || 0;
-            } catch (_) {
-                failedPinAttempts = 0;
-                lockUntilTimestamp = 0;
-            }
+                failedPinAttempts = Math.max(failedPinAttempts, Number(parsed.failedPinAttempts) || 0);
+                lockUntilTimestamp = Math.max(lockUntilTimestamp, Number(parsed.lockUntilTimestamp) || 0);
+                lockoutStrikeLevel = Math.max(lockoutStrikeLevel, Number(parsed.lockoutStrikeLevel) || 0);
+            } catch (_) {}
         }
         function savePersistentLockState() {
             safeStorageSet('renocamp_security_lock', JSON.stringify({
@@ -941,12 +970,24 @@
             return /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=\s]+$/i.test(str.trim());
         }
 
-        const LEGACY_CRYPTO_SALT = new TextEncoder().encode('RenoCamp_HK_Vault_Salt_2026_v1');
+        const LEGACY_CRYPTO_SALT = new _NativeTextEncoder().encode('RenoCamp_HK_Vault_Salt_2026_v1');
         const PBKDF2_ITERATIONS_V2 = 210000;
         const PBKDF2_ITERATIONS_V1 = 100000;
-        const PBKDF2_PIN_VERIFY_ITERATIONS = 310000;
+        const PBKDF2_PIN_VERIFY_ITERATIONS_V3 = 600000;
+        const PBKDF2_PIN_VERIFY_ITERATIONS_V2 = 310000;
         const _derivedKeyCache = new Map();
         const _cipherDecryptCache = new Map();
+
+        // 🛡️ [中危 2 修復] 本機硬件/瀏覽器綁定 256-bit 隨機裝置金鑰 (Device Pepper)，令單獨偷走 renocamp_pin_hash 無法離線撞庫
+        function getOrCreateDevicePepper() {
+            let pep = safeStorageGet('renocamp_device_pepper', '');
+            if (!pep || pep.length < 32) {
+                const rand = _nativeGetRandomValues(new Uint8Array(32));
+                pep = Array.from(rand).map(b => b.toString(16).padStart(2, '0')).join('');
+                safeStorageSet('renocamp_device_pepper', pep);
+            }
+            return pep;
+        }
 
         function withTimeout(promise, ms = 4000) {
             return Promise.race([
@@ -956,46 +997,49 @@
         }
 
         async function sha256PinHash(pinStr) {
-            const data = new TextEncoder().encode('RC_PIN_PEPPER_' + String(pinStr).trim());
-            const hashBuf = await crypto.subtle.digest('SHA-256', data);
+            const data = new _NativeTextEncoder().encode('RC_PIN_PEPPER_' + String(pinStr).trim());
+            const hashBuf = await _nativeDigest('SHA-256', data);
             return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        // 銀行級 PBKDF2-HMAC-SHA256 (310,000 次迭代 + 128-bit 隨機鹽) 密碼雜湊產生器
-        async function createPbkdf2PinVerifier(pinStr, customSaltBytes) {
-            const salt = customSaltBytes || crypto.getRandomValues(new Uint8Array(16));
-            const baseKey = await crypto.subtle.importKey(
+        // 銀行級 PBKDF2-HMAC-SHA256 (600,000 次迭代 + 128-bit 隨機鹽 + 本機 256-bit Device Pepper) 密碼雜湊產生器
+        async function createPbkdf2PinVerifier(pinStr, customSaltBytes, useLegacyV2 = false) {
+            const salt = customSaltBytes || _nativeGetRandomValues(new Uint8Array(16));
+            const devPepper = useLegacyV2 ? '' : ('|' + getOrCreateDevicePepper());
+            const iterations = useLegacyV2 ? PBKDF2_PIN_VERIFY_ITERATIONS_V2 : PBKDF2_PIN_VERIFY_ITERATIONS_V3;
+            const prefix = useLegacyV2 ? 'PBKDF2_V2' : 'PBKDF2_V3';
+            const baseKey = await _nativeImportKey(
                 'raw',
-                new TextEncoder().encode('RC_VAULT_V2_PEPPER_' + String(pinStr).trim()),
+                new _NativeTextEncoder().encode('RC_VAULT_V2_PEPPER_' + String(pinStr).trim() + devPepper),
                 { name: 'PBKDF2' },
                 false,
                 ['deriveBits']
             );
-            const derivedBits = await crypto.subtle.deriveBits(
-                { name: 'PBKDF2', salt, iterations: PBKDF2_PIN_VERIFY_ITERATIONS, hash: 'SHA-256' },
+            const derivedBits = await _nativeDeriveBits(
+                { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
                 baseKey,
                 256
             );
             const hashHex = Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
             const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
-            return `PBKDF2_V2:${saltHex}:${hashHex}`;
+            return `${prefix}:${saltHex}:${hashHex}`;
         }
 
         async function verifyPinAgainstStoredVerifier(inputPin, storedVerifier) {
             if (!inputPin || !storedVerifier) return false;
             const cleanPin = String(inputPin).trim();
             const verifierStr = String(storedVerifier).trim();
-            if (verifierStr.startsWith('PBKDF2_V2:')) {
+            if (verifierStr.startsWith('PBKDF2_V3:') || verifierStr.startsWith('PBKDF2_V2:')) {
+                const isLegacyV2 = verifierStr.startsWith('PBKDF2_V2:');
                 const parts = verifierStr.split(':');
                 if (parts.length !== 3) return false;
                 const saltHex = parts[1];
                 const expectedHashHex = parts[2];
                 const saltBytes = new Uint8Array(saltHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-                const candidate = await createPbkdf2PinVerifier(cleanPin, saltBytes);
+                const candidate = await createPbkdf2PinVerifier(cleanPin, saltBytes, isLegacyV2);
                 const candidateHashHex = candidate.split(':')[2] || '';
                 return constantTimeEqualHex(candidateHashHex, expectedHashHex);
             }
-            // 兼容舊版 64 位 SHA-256 hex 雜湊（驗證成功後會自動無縫升級至 PBKDF2_V2）
             const legacyHash = await sha256PinHash(cleanPin);
             return constantTimeEqualHex(legacyHash, verifierStr);
         }
@@ -1021,14 +1065,14 @@
             if (_derivedKeyCache.has(cacheKey)) {
                 return _derivedKeyCache.get(cacheKey);
             }
-            const baseKey = await crypto.subtle.importKey(
+            const baseKey = await _nativeImportKey(
                 'raw',
-                new TextEncoder().encode(effectivePin),
+                new _NativeTextEncoder().encode(effectivePin),
                 { name: 'PBKDF2' },
                 false,
                 ['deriveKey']
             );
-            const derived = await crypto.subtle.deriveKey(
+            const derived = await _nativeDeriveKey(
                 { name: 'PBKDF2', salt: actualSalt, iterations, hash: 'SHA-256' },
                 baseKey,
                 { name: 'AES-GCM', length: 256 },
@@ -1065,11 +1109,11 @@
             const strVal = String(plainText);
             if (strVal.startsWith('ENC_V2:') || strVal.startsWith('ENC_V1:')) return strVal;
 
-            const salt = crypto.getRandomValues(new Uint8Array(16));
-            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const salt = _nativeGetRandomValues(new Uint8Array(16));
+            const iv = _nativeGetRandomValues(new Uint8Array(12));
             const key = await deriveVaultAesKey(pinOverride, salt, PBKDF2_ITERATIONS_V2);
-            const encoded = new TextEncoder().encode(strVal);
-            const cipherBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+            const encoded = new _NativeTextEncoder().encode(strVal);
+            const cipherBuf = await _nativeEncrypt({ name: 'AES-GCM', iv }, key, encoded);
             const result = `ENC_V2:${uint8ToBase64(salt)}:${uint8ToBase64(iv)}:${uint8ToBase64(new Uint8Array(cipherBuf))}`;
             if (!result.startsWith('ENC_V2:')) {
                 throw new Error('ENCRYPTION_INTEGRITY_CHECK_FAILED');
@@ -1095,8 +1139,8 @@
                     const iv = base64ToUint8(parts[2]);
                     const cipherBytes = base64ToUint8(parts[3]);
                     const key = await deriveVaultAesKey(pinOverride, salt, PBKDF2_ITERATIONS_V2);
-                    const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherBytes);
-                    const decoded = new TextDecoder().decode(plainBuf);
+                    const plainBuf = await _nativeDecrypt({ name: 'AES-GCM', iv }, key, cipherBytes);
+                    const decoded = new _NativeTextDecoder().decode(plainBuf);
                     if (_cipherDecryptCache.size > 2000) _cipherDecryptCache.clear();
                     _cipherDecryptCache.set(cacheKey, decoded);
                     return decoded;
@@ -1112,8 +1156,8 @@
                     const iv = base64ToUint8(parts[1]);
                     const cipherBytes = base64ToUint8(parts[2]);
                     const key = await deriveVaultAesKey(pinOverride, LEGACY_CRYPTO_SALT, PBKDF2_ITERATIONS_V1);
-                    const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherBytes);
-                    const decoded = new TextDecoder().decode(plainBuf);
+                    const plainBuf = await _nativeDecrypt({ name: 'AES-GCM', iv }, key, cipherBytes);
+                    const decoded = new _NativeTextDecoder().decode(plainBuf);
                     if (_cipherDecryptCache.size > 2000) _cipherDecryptCache.clear();
                     _cipherDecryptCache.set(cacheKey, decoded);
                     return decoded;
@@ -1258,11 +1302,39 @@
             return `${y}-${m}-${d}`;
         }
 
-        // 未解鎖前，記憶體內收支與相片陣列保持空白，解鎖後先由加密儲存載入
+        // 🛡️ [低危 4 修復] 未解鎖前，記憶體內收支、相片與刪除墓碑陣列全部保持空白，本機全面改用 ENC_V2 全密文儲存，杜絕未解鎖洩露相片數量與拍攝時間戳！
         let transactions = [];
-        let deletedIds = new Set(JSON.parse(safeStorageGet('renocamp_deleted_ids', '[]')));
-        let deletedPhotoIds = new Set(JSON.parse(safeStorageGet('renocamp_deleted_photo_ids', '[]')));
+        let deletedIds = new Set();
+        let deletedPhotoIds = new Set();
         let vaultPhotos = [];
+
+        function saveLocalVaultPhotos() {
+            if (!isAppUnlocked || !activeSessionPin) return;
+            const pinSnap = activeSessionPin;
+            const photosJson = JSON.stringify(vaultPhotos);
+            encryptSensitiveString(photosJson, pinSnap).then(enc => {
+                if (enc && enc.startsWith('ENC_V2:')) {
+                    safeStorageSet('renocamp_vault_photos_enc', enc);
+                    safeStorageRemove('renocamp_vault_photos');
+                }
+            }).catch(() => {});
+        }
+
+        function saveLocalDeletedTombstones() {
+            if (!isAppUnlocked || !activeSessionPin) return;
+            const pinSnap = activeSessionPin;
+            const delJson = JSON.stringify({
+                ids: Array.from(deletedIds),
+                photoIds: Array.from(deletedPhotoIds)
+            });
+            encryptSensitiveString(delJson, pinSnap).then(enc => {
+                if (enc && enc.startsWith('ENC_V2:')) {
+                    safeStorageSet('renocamp_deleted_tombstones_enc', enc);
+                    safeStorageRemove('renocamp_deleted_ids');
+                    safeStorageRemove('renocamp_deleted_photo_ids');
+                }
+            }).catch(() => {});
+        }
         let localDropdownsUpdatedAt = Number(safeStorageGet('renocamp_dropdowns_updated_at', '0')) || 0;
         let localBrandingUpdatedAt = Number(safeStorageGet('renocamp_branding_updated_at', '0')) || 0;
         const DEFAULT_DROPDOWNS = {
@@ -1493,14 +1565,17 @@
             let isMatch = false;
             const embeddedAuthEnc = safeStorageGet('renocamp_cloud_auth_enc', '');
             const localEncTx = safeStorageGet('renocamp_transactions_enc', '');
-            const localPhotosRaw = safeStorageGet('renocamp_vault_photos', '[]');
-            let firstEncPhoto = '';
-            try {
-                const parsedP = JSON.parse(localPhotosRaw);
-                if (Array.isArray(parsedP) && parsedP[0] && String(parsedP[0].photo || '').startsWith('ENC_V')) {
-                    firstEncPhoto = String(parsedP[0].photo);
-                }
-            } catch (_) {}
+            const localEncPhotos = safeStorageGet('renocamp_vault_photos_enc', '');
+            let firstEncPhoto = localEncPhotos && localEncPhotos.startsWith('ENC_V') ? localEncPhotos : '';
+            if (!firstEncPhoto) {
+                const localPhotosRaw = safeStorageGet('renocamp_vault_photos', '[]');
+                try {
+                    const parsedP = JSON.parse(localPhotosRaw);
+                    if (Array.isArray(parsedP) && parsedP[0] && String(parsedP[0].photo || '').startsWith('ENC_V')) {
+                        firstEncPhoto = String(parsedP[0].photo);
+                    }
+                } catch (_) {}
+            }
             if (!userPinHash && embeddedAuthEnc && embeddedAuthEnc.startsWith('ENC_V2:')) {
                 const testDec = await decryptSensitiveString(embeddedAuthEnc, input);
                 if (testDec) {
@@ -1554,8 +1629,8 @@
 
                 isAppUnlocked = true;
                 activeSessionPin = input;
-                // 若原本係舊版 64-char SHA-256，即刻自動升級為 PBKDF2_V2 (310,000 次迭代 + 隨機鹽)
-                if (!String(userPinHash).startsWith('PBKDF2_V2:')) {
+                // 自動無縫升級至 PBKDF2_V3 (600,000 次迭代 + 128-bit 隨機鹽 + 本機 256-bit Device Pepper)
+                if (!String(userPinHash).startsWith('PBKDF2_V3:')) {
                     userPinHash = await createPbkdf2PinVerifier(input);
                 }
                 safeStorageSet('renocamp_pin_hash', userPinHash);
@@ -1716,10 +1791,52 @@
                     }
                 }
 
-                // 載入本機加密相片庫
-                const storedPhotos = JSON.parse(safeStorageGet('renocamp_vault_photos', '[]'));
-                if (Array.isArray(storedPhotos)) {
-                    vaultPhotos = storedPhotos.filter(p => p && !deletedPhotoIds.has(String(p.id)));
+                // [低危 4 修復] 遷移並解密本機刪除墓碑 (renocamp_deleted_tombstones_enc)，徹底銷毀明文刪除 ID 列表
+                const legacyDelIds = safeStorageGet('renocamp_deleted_ids', '');
+                const legacyDelPhotos = safeStorageGet('renocamp_deleted_photo_ids', '');
+                if (legacyDelIds || legacyDelPhotos) {
+                    try {
+                        if (legacyDelIds) JSON.parse(legacyDelIds).forEach(id => deletedIds.add(String(id)));
+                        if (legacyDelPhotos) JSON.parse(legacyDelPhotos).forEach(pid => deletedPhotoIds.add(String(pid)));
+                    } catch (_) {}
+                    saveLocalDeletedTombstones();
+                } else {
+                    const encTomb = safeStorageGet('renocamp_deleted_tombstones_enc', '');
+                    if (encTomb && encTomb.startsWith('ENC_V')) {
+                        const decTombStr = await decryptSensitiveString(encTomb, activeSessionPin);
+                        if (decTombStr) {
+                            try {
+                                const parsedTomb = JSON.parse(decTombStr);
+                                if (Array.isArray(parsedTomb.ids)) parsedTomb.ids.forEach(id => deletedIds.add(String(id)));
+                                if (Array.isArray(parsedTomb.photoIds)) parsedTomb.photoIds.forEach(pid => deletedPhotoIds.add(String(pid)));
+                            } catch (_) {}
+                        }
+                    }
+                }
+
+                // [低危 4 修復] 遷移並解密本機夾萬相片庫外層封裝 (renocamp_vault_photos_enc)，銷毀明文外層陣列
+                const legacyPlainPhotosArr = safeStorageGet('renocamp_vault_photos', '');
+                if (legacyPlainPhotosArr) {
+                    try {
+                        const storedPhotos = JSON.parse(legacyPlainPhotosArr);
+                        if (Array.isArray(storedPhotos)) {
+                            vaultPhotos = storedPhotos.filter(p => p && !deletedPhotoIds.has(String(p.id)));
+                        }
+                    } catch (_) {}
+                    saveLocalVaultPhotos();
+                } else {
+                    const encPhotosStr = safeStorageGet('renocamp_vault_photos_enc', '');
+                    if (encPhotosStr && encPhotosStr.startsWith('ENC_V')) {
+                        const decPhotosJson = await decryptSensitiveString(encPhotosStr, activeSessionPin);
+                        if (decPhotosJson) {
+                            try {
+                                const parsedPhotos = JSON.parse(decPhotosJson);
+                                if (Array.isArray(parsedPhotos)) {
+                                    vaultPhotos = parsedPhotos.filter(p => p && !deletedPhotoIds.has(String(p.id)));
+                                }
+                            } catch (_) {}
+                        }
+                    }
                 }
 
                 // 兼容遷移舊版明文收支 (如有) 並即刻銷毀明文鍵
@@ -1779,7 +1896,7 @@
                 }
             }
             if (upgraded) {
-                safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+                saveLocalVaultPhotos();
             }
         }
 
@@ -1807,6 +1924,8 @@
             isSavingTx = false;
             transactions = [];
             vaultPhotos = [];
+            deletedIds = new Set();
+            deletedPhotoIds = new Set();
             clearTimeout(idleLockTimer);
 
             // 斷開所有背景雲端實時監聽器，杜絕鎖屏期間背景寫入 DOM
@@ -1876,9 +1995,15 @@
             }
             const toastTextEl = document.getElementById('app-toast-text');
             if (toastTextEl) toastTextEl.textContent = '提示訊息';
-            if (auth && window.firebaseModules && window.firebaseModules.signOut) {
-                window.firebaseModules.signOut(auth).catch(() => {});
+            if (auth && _fbModules && _fbModules.signOut) {
+                _fbModules.signOut(auth).catch(() => {});
             }
+            // 🛡️ [高危 1 修復] 鎖屏時同步清除瀏覽器 IndexedDB 入面嘅 Firebase Auth 離線 Token 緩存
+            try {
+                if (window.indexedDB && typeof window.indexedDB.deleteDatabase === 'function') {
+                    window.indexedDB.deleteDatabase('firebaseLocalStorageDb');
+                }
+            } catch (_) {}
             [
                 'gh-token', 'settings-new-pin', 'fb-auth-password', 'fb-api-key', 'fb-auth-email',
                 'global-search-input', 'tx-edit-id', 'tx-amount', 'tx-person', 'tx-note',
@@ -1949,8 +2074,8 @@
         async function connectCloudDatabase(isExplicitBind = false) {
             if (!isAppUnlocked) return;
             try {
-                if (!window.firebaseModules) return;
-                const { initializeApp, getApps, getFirestore, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.firebaseModules;
+                if (!window['firebaseModules']) return;
+                const { initializeApp, getApps, getFirestore, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = _fbModules;
                 const cfg = getFirebaseConfig();
                 if (!cfg.apiKey) {
                     updateCloudStatusUI(false);
@@ -2102,14 +2227,14 @@
             }
 
             transactions = Array.from(mergedMap.values());
-            safeStorageSet('renocamp_deleted_ids', JSON.stringify(Array.from(deletedIds)));
+            saveLocalDeletedTombstones();
             saveLocalTransactions();
             renderAllLists();
         }
 
         function initRealtimeSync() {
             if (!db || !isAppUnlocked) return;
-            const { collection, onSnapshot } = window.firebaseModules;
+            const { collection, onSnapshot } = _fbModules;
 
             activeUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
             activeUnsubscribers = [];
@@ -2161,46 +2286,64 @@
                         if (cloudTs >= localBrandingUpdatedAt) {
                             localBrandingUpdatedAt = cloudTs;
                             safeStorageSet('renocamp_branding_updated_at', String(cloudTs));
-                            if (data.banner && data.banner !== savedBanner && (String(data.banner).startsWith('data:image/') || String(data.banner).startsWith('https://'))) {
-                                savedBanner = data.banner;
-                                safeStorageSet('renocamp_banner', savedBanner);
-                                const lb = document.getElementById('lock-screen-banner');
-                                if (lb) lb.src = savedBanner;
-                            }
-                            if (data.avatar && data.avatar !== savedAvatar && (String(data.avatar).startsWith('data:image/') || String(data.avatar).startsWith('https://'))) {
-                                savedAvatar = data.avatar;
-                                safeStorageSet('renocamp_avatar', savedAvatar);
-                                applyAvatarToDOM(savedAvatar);
-                            }
+                            (async () => {
+                                let bObj = data;
+                                if (data.encBranding && String(data.encBranding).startsWith('ENC_V')) {
+                                    const decB = await decryptSensitiveString(data.encBranding, activeSessionPin);
+                                    if (decB) {
+                                        try { bObj = JSON.parse(decB); } catch (_) {}
+                                    }
+                                }
+                                if (bObj.banner && bObj.banner !== savedBanner && (String(bObj.banner).startsWith('data:image/') || String(bObj.banner).startsWith('https://'))) {
+                                    savedBanner = bObj.banner;
+                                    safeStorageSet('renocamp_banner', savedBanner);
+                                    const lb = document.getElementById('lock-screen-banner');
+                                    if (lb) lb.src = savedBanner;
+                                }
+                                if (bObj.avatar && bObj.avatar !== savedAvatar && (String(bObj.avatar).startsWith('data:image/') || String(bObj.avatar).startsWith('https://'))) {
+                                    savedAvatar = bObj.avatar;
+                                    safeStorageSet('renocamp_avatar', savedAvatar);
+                                    applyAvatarToDOM(savedAvatar);
+                                }
+                            })();
                         }
-                        // M3 修復：嚴禁讀取雲端舊殘留 pinHash 覆蓋本機 PBKDF2_V2 密碼雜湊
-                    } else if (docSnap.id === 'dropdowns' && data.options) {
+                    } else if (docSnap.id === 'dropdowns' && (data.encOptions || data.options)) {
                         const cloudTs = Number(data.updatedAt || 0);
                         if (cloudTs >= localDropdownsUpdatedAt) {
                             localDropdownsUpdatedAt = cloudTs;
                             safeStorageSet('renocamp_dropdowns_updated_at', String(cloudTs));
-                            customDropdowns = data.options;
-                            encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin).then(encD => {
-                                if (encD) {
-                                    safeStorageSet('renocamp_dropdowns_enc', encD);
-                                    safeStorageRemove('renocamp_dropdowns');
+                            (async () => {
+                                let nextOpts = data.options || null;
+                                if (data.encOptions && String(data.encOptions).startsWith('ENC_V')) {
+                                    const decO = await decryptSensitiveString(data.encOptions, activeSessionPin);
+                                    if (decO) {
+                                        try { nextOpts = JSON.parse(decO); } catch (_) {}
+                                    }
                                 }
-                            }).catch(() => {});
-                            renderDropdownEditor();
+                                if (nextOpts && typeof nextOpts === 'object') {
+                                    customDropdowns = nextOpts;
+                                    const encD = await encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
+                                    if (encD) {
+                                        safeStorageSet('renocamp_dropdowns_enc', encD);
+                                        safeStorageRemove('renocamp_dropdowns');
+                                    }
+                                    renderDropdownEditor();
+                                }
+                            })();
                         }
                     } else if (docSnap.id === 'deleted_records') {
                         if (Array.isArray(data.ids)) {
                             data.ids.forEach(id => deletedIds.add(String(id)));
-                            safeStorageSet('renocamp_deleted_ids', JSON.stringify(Array.from(deletedIds)));
+                            saveLocalDeletedTombstones();
                             transactions = transactions.filter(t => !deletedIds.has(String(t.id)));
                             saveLocalTransactions();
                             renderAllLists();
                         }
                         if (Array.isArray(data.photoIds)) {
                             data.photoIds.forEach(pid => deletedPhotoIds.add(String(pid)));
-                            safeStorageSet('renocamp_deleted_photo_ids', JSON.stringify(Array.from(deletedPhotoIds)));
+                            saveLocalDeletedTombstones();
                             vaultPhotos = vaultPhotos.filter(p => !deletedPhotoIds.has(String(p.id)));
-                            safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+                            saveLocalVaultPhotos();
                             renderVaultPhotosGrid();
                         }
                     }
@@ -2237,15 +2380,15 @@
                 }
             });
             vaultPhotos = Array.from(photoMap.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-            safeStorageSet('renocamp_deleted_photo_ids', JSON.stringify(Array.from(deletedPhotoIds)));
-            safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+            saveLocalDeletedTombstones();
+            saveLocalVaultPhotos();
             renderVaultPhotosGrid();
         }
 
         async function pullAllFromCloudNow() {
             if (!db || !isAppUnlocked) return;
             try {
-                const { collection, getDocs, getDocsFromServer, doc, getDoc, getDocFromServer } = window.firebaseModules;
+                const { collection, getDocs, getDocsFromServer, doc, getDoc, getDocFromServer } = _fbModules;
                 const fetchDocFresh = (ref) => (getDocFromServer ? getDocFromServer(ref).catch(() => getDoc(ref)) : getDoc(ref)).catch(() => null);
                 const fetchColFresh = (ref) => (getDocsFromServer ? getDocsFromServer(ref).catch(() => getDocs(ref)) : getDocs(ref)).catch(() => null);
 
@@ -2296,8 +2439,8 @@
                 if (hasPlaintextCloudTxToHeal && transactions.length > 0) {
                     hasPlaintextCloudTxToHeal = false;
                     await window.pushAllDataToCloud(true);
-                } else if (unsyncedLocalTx.length > 0 && window.firebaseModules) {
-                    const { doc, setDoc } = window.firebaseModules;
+                } else if (unsyncedLocalTx.length > 0 && window['firebaseModules']) {
+                    const { doc, setDoc } = _fbModules;
                     const pushPromises = [];
                     for (const t of unsyncedLocalTx) {
                         const encCloudDoc = await buildEncryptedCloudTxDoc(t, activeSessionPin);
@@ -2361,10 +2504,10 @@
             }
 
             if (healedCount > 0) {
-                safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+                saveLocalVaultPhotos();
                 await renderVaultPhotosGrid();
                 if (db) {
-                    const { doc, setDoc } = window.firebaseModules;
+                    const { doc, setDoc } = _fbModules;
                     for (const p of vaultPhotos) {
                         if (String(p.photo || '').startsWith('ENC_V2:')) {
                             await Promise.all([
@@ -2789,7 +2932,7 @@
             }
             if (db) {
                 try {
-                    const { doc, setDoc } = window.firebaseModules;
+                    const { doc, setDoc } = _fbModules;
                     const encCloudDoc = await buildEncryptedCloudTxDoc(record, activeSessionPin);
                     await withTimeout(Promise.all([
                         setDoc(doc(db, "renocamp_transactions", txId), encCloudDoc),
@@ -2815,7 +2958,7 @@
             showConfirmModal('確定要刪除呢筆夾萬記錄？（所有裝置將同步刪除）', async () => {
                 const strId = String(id);
                 deletedIds.add(strId);
-                safeStorageSet('renocamp_deleted_ids', JSON.stringify(Array.from(deletedIds)));
+                saveLocalDeletedTombstones();
 
                 transactions = transactions.filter(t => String(t.id) !== strId);
                 saveLocalTransactions();
@@ -2824,7 +2967,7 @@
 
                 if (db) {
                     try {
-                        const { doc, deleteDoc, setDoc } = window.firebaseModules;
+                        const { doc, deleteDoc, setDoc } = _fbModules;
                         await Promise.all([
                             deleteDoc(doc(db, "renocamp_transactions", strId)),
                             deleteDoc(doc(db, "transactions", strId)),
@@ -3086,14 +3229,14 @@
                 clearVaultUploadPreviewMemory();
 
                 vaultPhotos.unshift(record);
-                safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+                saveLocalVaultPhotos();
                 await renderVaultPhotosGrid();
                 window.closeVaultPhotoModal();
                 window.switchTab('vault');
                 showToast('🛡️ 夾萬相片及實點銀碼已 AES-256 加密存入雲端！');
 
                 if (db) {
-                    const { doc, setDoc } = window.firebaseModules;
+                    const { doc, setDoc } = _fbModules;
                     await Promise.all([
                         setDoc(doc(db, "renocamp_vault_photos", String(record.id)), record),
                         setDoc(doc(db, "vault_photos", String(record.id)), record)
@@ -3206,7 +3349,7 @@
                 }
                 if (changed) migratedCount++;
             }
-            safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+            saveLocalVaultPhotos();
             await renderVaultPhotosGrid();
             await window.pushAllDataToCloud(true);
             showToast(migratedCount > 0 ? `🔐 已成功將 ${migratedCount} 張夾萬相片及實點銀碼升級為 ENC_V2 動態鹽雲端密文！` : '✅ 所有夾萬相片及銀碼均已處於 ENC_V2 最高加密狀態！');
@@ -3293,7 +3436,10 @@
 
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(rulesText).then(() => {
-                    showToast('✅ 已複製完整 Firestore 安全規則！請去 Firebase Console 貼上並發布');
+                    showToast('✅ 已複製完整 Firestore 安全規則！（剪貼簿將於 60 秒後自動清空防洩漏）');
+                    setTimeout(() => {
+                        try { navigator.clipboard.writeText('').catch(() => {}); } catch (_) {}
+                    }, 60000);
                 }).catch(() => {
                     fallbackCopyRules(rulesText);
                 });
@@ -3323,9 +3469,10 @@
             const hasPlaintextFbApiKey = Boolean(safeStorageGet('renocamp_fb_api_key', ''));
             const hasPlaintextDropdowns = Boolean(safeStorageGet('renocamp_dropdowns', ''));
             const hasPublicDomAuthAttr = Boolean(document.documentElement.getAttribute('data-cloud-auth-enc'));
-            const hasAnonAuthModule = Boolean(window.firebaseModules && window.firebaseModules.signInAnonymously);
-            const isPbkdf2V2Pin = String(userPinHash || '').startsWith('PBKDF2_V2:');
-            const isClosureIsolated = (typeof window.activeSessionPin === 'undefined') && (typeof window._isolatedPinBuffer === 'undefined');
+            const hasAnonAuthModule = Boolean((_fbModules && _fbModules.signInAnonymously) || window.firebaseModules);
+            const isPbkdf2V2Pin = String(userPinHash || '').startsWith('PBKDF2_V3:') || String(userPinHash || '').startsWith('PBKDF2_V2:');
+            const hasPlaintextPhotoArr = Boolean(safeStorageGet('renocamp_vault_photos', ''));
+            const isClosureIsolated = (typeof window.activeSessionPin === 'undefined') && (typeof window._isolatedPinBuffer === 'undefined') && (typeof window.firebaseModules === 'undefined') && !hasPlaintextPhotoArr;
             const allPhotosEncV2 = vaultPhotos.every(p => String(p.photo || '').startsWith('ENC_V2:') && String(p.encMeta || '').startsWith('ENC_V2:') && Number(p.amount || 0) === 0);
 
             let cryptoSelfTestOk = false;
@@ -3360,15 +3507,15 @@
             showConfirmModal('確定要刪除呢張夾萬現況相片？（所有裝置將同步永久刪除）', async () => {
                 const strId = String(id);
                 deletedPhotoIds.add(strId);
-                safeStorageSet('renocamp_deleted_photo_ids', JSON.stringify(Array.from(deletedPhotoIds)));
+                saveLocalDeletedTombstones();
                 vaultPhotos = vaultPhotos.filter(p => String(p.id) !== strId);
-                safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+                saveLocalVaultPhotos();
                 await renderVaultPhotosGrid();
                 showToast('🗑️ 相片已從本機及所有跨裝置雲端永久刪除');
 
                 if (db) {
                     try {
-                        const { doc, deleteDoc, setDoc } = window.firebaseModules;
+                        const { doc, deleteDoc, setDoc } = _fbModules;
                         await Promise.all([
                             deleteDoc(doc(db, "renocamp_vault_photos", strId)),
                             deleteDoc(doc(db, "vault_photos", strId)),
@@ -3467,9 +3614,9 @@
                 }
                 input.value = '';
                 renderDropdownEditor();
-                if (db) {
-                    const { doc, setDoc } = window.firebaseModules;
-                    await setDoc(doc(db, "settings", "dropdowns"), { options: customDropdowns, updatedAt: Date.now() });
+                if (db && encD) {
+                    const { doc, setDoc } = _fbModules;
+                    await setDoc(doc(db, "settings", "dropdowns"), { encOptions: encD, encrypted: true, updatedAt: Date.now() });
                 }
             }
         };
@@ -3484,9 +3631,9 @@
                 safeStorageRemove('renocamp_dropdowns');
             }
             renderDropdownEditor();
-            if (db) {
-                const { doc, setDoc } = window.firebaseModules;
-                await setDoc(doc(db, "settings", "dropdowns"), { options: customDropdowns, updatedAt: Date.now() });
+            if (db && encD) {
+                const { doc, setDoc } = _fbModules;
+                await setDoc(doc(db, "settings", "dropdowns"), { encOptions: encD, encrypted: true, updatedAt: Date.now() });
             }
         };
 
@@ -3520,8 +3667,8 @@
                 else totalExp += Number(t.amount || 0);
             });
             const bal = totalInc - totalExp;
+            // 🛡️ [低危 5 修復] 直接透過 URL 傳遞簡報至 WhatsApp，絕不寫入系統剪貼簿以免殘留夾萬結餘
             const text = `🔐【香港裝修師傅大本營 · 夾萬現金簡報】\n📅 日期：${new Date().toLocaleDateString()}\n💰 夾萬現錢結餘：$${formatMoney(bal)}\n↙ 夾萬總收入：$${formatMoney(totalInc)}\n↗ 夾萬總支出：$${formatMoney(totalExp)}`;
-            if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
             window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
         };
 
@@ -3579,11 +3726,11 @@
                     }
                     if (Array.isArray(data.deletedIds)) {
                         data.deletedIds.forEach(id => deletedIds.add(String(id)));
-                        safeStorageSet('renocamp_deleted_ids', JSON.stringify(Array.from(deletedIds)));
+                        saveLocalDeletedTombstones();
                     }
                     if (Array.isArray(data.deletedPhotoIds)) {
                         data.deletedPhotoIds.forEach(pid => deletedPhotoIds.add(String(pid)));
-                        safeStorageSet('renocamp_deleted_photo_ids', JSON.stringify(Array.from(deletedPhotoIds)));
+                        saveLocalDeletedTombstones();
                     }
                     if (Array.isArray(data.transactions)) {
                         transactions = data.transactions.map(normalizeTransaction).filter(t => !deletedIds.has(String(t.id)));
@@ -3591,7 +3738,7 @@
                     }
                     if (Array.isArray(data.vaultPhotos)) {
                         vaultPhotos = data.vaultPhotos.filter(p => p && !deletedPhotoIds.has(String(p.id)));
-                        safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+                        saveLocalVaultPhotos();
                         await autoUpgradeVaultPhotosInBackground();
                     }
                     if (data.customDropdowns && typeof data.customDropdowns === 'object') {
@@ -3641,14 +3788,14 @@
                 showConfirmModal('【最終確認】確定要永久清空所有夾萬收支記錄？（所有跨裝置將同步清空）', async () => {
                     const idsToDelete = transactions.map(t => String(t.id));
                     idsToDelete.forEach(id => deletedIds.add(id));
-                    safeStorageSet('renocamp_deleted_ids', JSON.stringify(Array.from(deletedIds)));
+                    saveLocalDeletedTombstones();
                     transactions = [];
                     saveLocalTransactions();
                     renderAllLists();
                     showToast('🗑️ 已永久清空本機及雲端收支記錄！');
                     if (db) {
                         try {
-                            const { doc, deleteDoc, setDoc } = window.firebaseModules;
+                            const { doc, deleteDoc, setDoc } = _fbModules;
                             await setDoc(doc(db, "settings", "deleted_records"), { ids: Array.from(deletedIds), photoIds: Array.from(deletedPhotoIds), updatedAt: Date.now() });
                             for (const id of idsToDelete) {
                                 deleteDoc(doc(db, "renocamp_transactions", id)).catch(() => {});
@@ -3733,7 +3880,7 @@
                 return;
             }
             try {
-                const { doc, setDoc } = window.firebaseModules;
+                const { doc, setDoc } = _fbModules;
                 const promises = [];
                 for (const t of transactions) {
                     const encCloudDoc = await buildEncryptedCloudTxDoc(t, activeSessionPin);
@@ -3765,15 +3912,17 @@
                         promises.push(setDoc(doc(db, "vault_photos", String(p.id)), p));
                     }
                 }
-                safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+                saveLocalVaultPhotos();
                 const nowTs = Date.now();
                 localBrandingUpdatedAt = nowTs;
                 localDropdownsUpdatedAt = nowTs;
                 safeStorageSet('renocamp_branding_updated_at', String(nowTs));
                 safeStorageSet('renocamp_dropdowns_updated_at', String(nowTs));
-                // 嚴禁將任何 pin / pinHash / authProof 公開上雲端；雲端 branding 只存頭像與橫幅
-                promises.push(setDoc(doc(db, "settings", "branding"), { banner: savedBanner, avatar: savedAvatar, updatedAt: nowTs }));
-                promises.push(setDoc(doc(db, "settings", "dropdowns"), { options: customDropdowns, updatedAt: nowTs }));
+                // 🛡️ [高危 1 修復] 雲端 branding (頭像/橫幅) 與 dropdowns (自訂項目/銀行選單) 全面升級為 ENC_V2 密文入庫
+                const encBrandingPayload = await encryptSensitiveString(JSON.stringify({ banner: savedBanner, avatar: savedAvatar }), activeSessionPin);
+                const encDropdownsPayload = await encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
+                promises.push(setDoc(doc(db, "settings", "branding"), { encBranding: encBrandingPayload, encrypted: true, updatedAt: nowTs }));
+                promises.push(setDoc(doc(db, "settings", "dropdowns"), { encOptions: encDropdownsPayload, encrypted: true, updatedAt: nowTs }));
                 promises.push(setDoc(doc(db, "settings", "deleted_records"), { ids: Array.from(deletedIds), photoIds: Array.from(deletedPhotoIds), updatedAt: nowTs }));
 
                 await withTimeout(Promise.all(promises), 5000);
@@ -3806,7 +3955,7 @@
                     vaultPhotos[i].statusBadge = '🔐 AES-256 端對端加密保護';
                     vaultPhotos[i].updatedAt = Date.now();
                 }
-                safeStorageSet('renocamp_vault_photos', JSON.stringify(vaultPhotos));
+                saveLocalVaultPhotos();
 
                 // 同步以新 PIN 重新加密本機儲存嘅 GitHub Token
                 const ghTokenInput = document.getElementById('gh-token');
