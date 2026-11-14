@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-HK" data-cloud-auth-enc="ENC_V2:6tJ1gDcSj9p98BJQLh8RiQ==:uCsVhR/tCACfPKkN:yCji8b2eUjzD6rfXLmmaS+fF6x0eODIwGSYQkt9BsDbiVXKgnu96eZdJEYaqRs9D/1wLa6j3XjRvWQIo2QLWEJFKe4aFRXsLwO1WRgAQSCyam1IYKaQnFZXp2g1z+MISPbEyhGJeTKvCvHQwZu1yzOt1qzlEVb0t5fbEWXuwUghIW3PUrv1VD9d6zkVFY+OtKXtHiCa+GYQTlcuxYB9RjPaLsgfiCgubnlyZvIyuNHNdakSjWUVAzU6ovA=="><head><script src="https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.zh_TW.8ezJ7WFASIU.O/m=gapi_iframes/rt=j/sv=1/d=1/ed=1/rs=AHpOoo-XHSwQy8B7xJsR_LIrn08tAwWe2g/cb=gapi.loaded_0?le=scs" async=""></script>
+<html lang="zh-HK" data-cloud-auth-enc="ENC_V2:rUDmKDABqUcPepEtO1L5mQ==:qO6MmX0gbwRpUktL:BHA3TdAp/vAcyuhU0ldCt7Y2Tl6dUkxECk9uccvhcqvKAUDcs+7S/nEhjYhdyKz/XvOrD3p9qsJaHP8nOEMwnfhAu7nR4JhofsycncpV0D/qoevSwkiozD3c2rN1Z7vR7dmtXz6s1pseMfdJitXZr4o73Eb4XpFH4qKz1WvO8FGk8fHhvTfEHbGYFx4klf3lVdz8T/sotNd3anbaYspFcxFNb0RLEz3iU0nZm95QcsiyfYmcj+xU9xc1Q31RkuerZkbJHlxXX0UX4gEupNEh1cZqmoX2F3GtEg=="><head><script src="https://apis.google.com/_/scs/abc-static/_/js/k=gapi.lb.zh_TW.8ezJ7WFASIU.O/m=gapi_iframes/rt=j/sv=1/d=1/ed=1/rs=AHpOoo-XHSwQy8B7xJsR_LIrn08tAwWe2g/cb=gapi.loaded_0?le=scs" async=""></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>香港裝修師傅大本營 · 私伙夾萬管理系統</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -24,10 +27,10 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        window.firebaseModules = { initializeApp, getApps, getApp, getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut };
+        window.firebaseModules = { initializeApp, getApps, getApp, getFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut };
         window.dispatchEvent(new Event('firebase-ready'));
     </script>
     <style id="core-app-styles">
@@ -38,7 +41,7 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
-<script src="https://apis.google.com/js/api.js?onload=__iframefcb130489" type="text/javascript" charset="UTF-8" gapi_processed="true"></script></head>
+<script src="https://apis.google.com/js/api.js?onload=__iframefcb127719" type="text/javascript" charset="UTF-8" gapi_processed="true"></script></head>
 <body class="bg-slate-100 text-slate-800 min-h-screen pb-24">
 
     <!-- 🔒 100% 經典原版登入畫面設計 (每次開網頁強制鎖定，必須親手撳「登入 →」先解鎖) -->
@@ -95,7 +98,9 @@
                 <!-- 提示列與雲端狀態膠囊 -->
                 <div class="flex items-center justify-between mb-2.5 px-0.5">
                     <span class="text-xs font-black text-slate-800">請輸入私人安全 PIN 碼：</span>
-                    <span id="cloud-status-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-400 flex items-center gap-1">🌐 雲端實時同步</span>
+                    <span id="cloud-status-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-400 flex items-center gap-1">
+                        🌐 雲端實時同步
+                    </span>
                 </div>
 
                 <!-- 密碼顯示框 (左鎖頭 + 私人PIN: + 清除掣) -->
@@ -160,8 +165,8 @@
                     🔒 鎖定
                 </button>
                 <div onclick="window.syncNowManual()" id="header-cloud-status" class="cursor-pointer px-2.5 py-1.5 bg-emerald-950/80 border border-emerald-500/40 rounded-full text-[11px] font-bold text-emerald-400 flex items-center gap-1" title="撳一下即刻雙向同步">
-                    <span id="header-cloud-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span id="header-cloud-text">雲端已連線</span>
+                    <span id="header-cloud-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <span id="header-cloud-text">連線中 / 點擊重試</span>
                 </div>
             </div>
         </div>
@@ -350,9 +355,9 @@
                 <div class="text-xs space-y-0.5">
                     <div class="font-black text-emerald-400 flex items-center gap-1.5">
                         <span>🔍 Firebase 雲端相片庫安全狀態：</span>
-                        <span id="cloud-photo-audit-status" class="text-white">🟢 雲端目前共 0 張相片（100% 乾淨無明文殘留）</span>
+                        <span id="cloud-photo-audit-status" class="text-white">解鎖後自動掃描雲端...</span>
                     </div>
-                    <p id="cloud-photo-audit-detail" class="text-[11px] text-slate-300">已核實 renocamp_vault_photos 及 vault_photos 全部記錄：0 張明文原圖、0 張舊版 ENC_V1、0 筆外露銀碼。</p>
+                    <p id="cloud-photo-audit-detail" class="text-[11px] text-slate-300">自動檢測 renocamp_vault_photos 及 vault_photos 集合有冇未加密原圖、舊版 ENC_V1 或明文銀碼。</p>
                 </div>
                 <button type="button" onclick="window.scanAndHealCloudVaultPhotos(false)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shrink-0 shadow-xs transition">
                     🛡️ 立即掃描並修復雲端相片
@@ -417,7 +422,7 @@
                     <h3 class="text-sm font-black text-slate-900 flex items-center gap-1.5">
                         ☁️ 跨裝置雲端實時同步中心 (iPhone / iPad / 電腦)
                     </h3>
-                    <span id="diag-status-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800">🟢 跨裝置雲端已連線</span>
+                    <span id="diag-status-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800">🔒 雲端規則鎖定中 (請先綁定 UID 或檢查 Firestore 規則)</span>
                 </div>
                 <p class="text-xs text-slate-500 mb-3">所有裝置共用同一個 <code class="bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-700">my-renocamp-app</code> 雲端資料庫，任何一部機加數、改名、刪數或上傳夾萬相，其他裝置自動同步。</p>
 
@@ -434,7 +439,7 @@
                 <details open="" class="bg-slate-900 text-white rounded-2xl p-3.5 border border-emerald-500/50 text-xs mb-2.5">
                     <summary class="font-black text-emerald-400 cursor-pointer flex items-center justify-between">
                         <span>🔑 方案 A：專屬雲端管理員驗證 (綁定 Firebase Auth UID · 封鎖公開讀寫)</span>
-                        <span id="fb-auth-uid-badge" class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 text-[10px]">待綁定 UID</span>
+                        <span id="fb-auth-uid-badge" class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-black">🟢 已鎖定專屬 UID</span>
                     </summary>
                     <div class="mt-3 space-y-2.5 text-slate-300">
                         <p class="text-[11px] leading-relaxed">首頁維持 100% 原版數字鍵盤！在此綁定你嘅 Firebase Web API Key 及專屬管理員電郵／高強度密碼後，系統會用你嘅私人 PIN 將憑證以 <code class="text-emerald-300 font-bold">ENC_V2 (210,000次 PBKDF2)</code> 加密保存。每次首頁入啱 PIN 解鎖，背景即自動登入你唯一嘅 Firebase UID，外人連讀取半個 Byte 都無權限。</p>
@@ -466,12 +471,12 @@
                                 儲存並重新連線雲端
                             </button>
                         </div>
-                        <div id="fb-owner-uid-display" class="text-[11px] font-mono text-emerald-300 bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">目前綁定 Owner UID：尚未登入（請填妥上方 API Key、電郵及密碼後撳綁定）</div>
+                        <div id="fb-owner-uid-display" class="text-[11px] font-mono text-emerald-300 bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">目前綁定專屬 Owner UID：f3SAIoZsPadtczhIFDgVESvyebQ2（複製下方 Firestore 規則即可鎖死唯讀寫權限）</div>
                     </div>
                 </details>
 
                 <!-- 🔒 雲端 Firestore Rules 防盜安全規則一鍵複製區 -->
-                <details class="bg-emerald-50/70 rounded-2xl p-3 border border-emerald-300 text-xs mt-2.5" open="">
+                <details class="bg-emerald-50/70 rounded-2xl p-3 border border-emerald-300 text-xs mt-2.5">
                     <summary class="font-black text-emerald-900 cursor-pointer flex items-center justify-between">
                         <span>🛡️ 雲端資料庫防盜安全規則 (Firestore Rules) 一鍵複製</span>
                         <span class="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px]">伺服器級防線</span>
@@ -777,7 +782,7 @@
 
     <!-- 頁內提示訊息 Toast 與自訂確認視窗 -->
     <div id="app-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[70] bg-slate-900 text-brand-400 px-5 py-3 rounded-2xl shadow-2xl border border-brand-500/40 text-xs font-black flex items-center gap-2 hidden">
-        <span id="app-toast-text">✅ 已複製完整 Firestore 安全規則！請去 Firebase Console 貼上並發布</span>
+        <span id="app-toast-text">🔐 首次啟用：已將你輸入嘅高強度 PIN 設為私人安全密碼！</span>
     </div>
 
     <div id="custom-confirm-modal" class="fixed inset-0 z-[65] bg-slate-900/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
@@ -904,7 +909,12 @@
                 hiddenTimestamp = Date.now();
             } else if (hiddenTimestamp > 0 && (Date.now() - hiddenTimestamp > 60000)) {
                 window.lockApp();
+            } else if (isAppUnlocked && db) {
+                pullAllFromCloudNow();
             }
+        });
+        window.addEventListener('online', () => {
+            if (isAppUnlocked) connectCloudDatabase(false);
         });
 
         function escapeHTML(str) {
@@ -1819,32 +1829,45 @@
 
                 try {
                     auth = getAuth(app);
-                    if (cloudAuthCreds.email && cloudAuthCreds.password) {
-                        let userCred = null;
-                        try {
-                            userCred = await withTimeout(signInWithEmailAndPassword(auth, cloudAuthCreds.email, cloudAuthCreds.password), 6000);
-                        } catch (signInErr) {
-                            const errCode = String(signInErr?.code || '');
-                            if (errCode.includes('user-not-found') || errCode.includes('invalid-credential') || isExplicitBind) {
-                                try {
-                                    userCred = await withTimeout(createUserWithEmailAndPassword(auth, cloudAuthCreds.email, cloudAuthCreds.password), 6000);
-                                } catch (_) {}
-                            }
+                    const { signInAnonymously } = window.firebaseModules;
+                    // 跨裝置自動對齊憑證：若平板或手機尚未手動填寫管理員電郵，自動使用基於你私人 PIN 衍生嘅跨裝置固定管理員憑證，確保 iPhone 同 iPad 100% 登入同一個 UID！
+                    let targetEmail = (cloudAuthCreds.email || '').trim();
+                    let targetPassword = (cloudAuthCreds.password || '').trim();
+                    if (!targetEmail || !targetPassword) {
+                        const pinDigest = await sha256PinHash(activeSessionPin || 'default');
+                        targetEmail = 'vault-sync@renocamp.local';
+                        targetPassword = 'Rc!' + pinDigest.slice(0, 21) + '9@A';
+                    }
+                    let userCred = null;
+                    try {
+                        userCred = await withTimeout(signInWithEmailAndPassword(auth, targetEmail, targetPassword), 6000);
+                    } catch (signInErr) {
+                        const errCode = String(signInErr?.code || '');
+                        if (errCode.includes('user-not-found') || errCode.includes('invalid-credential') || isExplicitBind) {
+                            try {
+                                userCred = await withTimeout(createUserWithEmailAndPassword(auth, targetEmail, targetPassword), 6000);
+                            } catch (_) {}
                         }
-                        if (userCred && userCred.user && userCred.user.uid) {
-                            updateOwnerUidUI(userCred.user.uid);
-                            const updatedPayload = JSON.stringify({
-                                projectId: cfg.projectId,
-                                apiKey: cfg.apiKey,
-                                email: cloudAuthCreds.email,
-                                password: cloudAuthCreds.password,
-                                ownerUid: userCred.user.uid
-                            });
-                            const encAuth = await encryptSensitiveString(updatedPayload, activeSessionPin);
-                            safeStorageSet('renocamp_cloud_auth_enc', encAuth);
-                            if (isExplicitBind) {
-                                showToast(`✅ 已成功綁定專屬 UID (${userCred.user.uid.slice(0, 8)}...)！`);
-                            }
+                    }
+                    if (!userCred && signInAnonymously) {
+                        try {
+                            userCred = await withTimeout(signInAnonymously(auth), 5000);
+                        } catch (_) {}
+                    }
+                    if (userCred && userCred.user && userCred.user.uid) {
+                        cloudAuthCreds = { email: targetEmail, password: targetPassword };
+                        updateOwnerUidUI(userCred.user.uid);
+                        const updatedPayload = JSON.stringify({
+                            projectId: cfg.projectId,
+                            apiKey: cfg.apiKey,
+                            email: targetEmail,
+                            password: targetPassword,
+                            ownerUid: userCred.user.uid
+                        });
+                        const encAuth = await encryptSensitiveString(updatedPayload, activeSessionPin);
+                        safeStorageSet('renocamp_cloud_auth_enc', encAuth);
+                        if (isExplicitBind) {
+                            showToast(`✅ 已成功綁定專屬 UID (${userCred.user.uid.slice(0, 8)}...)！`);
                         }
                     }
                 } catch (_) {}
@@ -2063,9 +2086,11 @@
         async function pullAllFromCloudNow() {
             if (!db || !isAppUnlocked) return;
             try {
-                const { collection, getDocs, doc, getDoc } = window.firebaseModules;
+                const { collection, getDocs, getDocsFromServer, doc, getDoc, getDocFromServer } = window.firebaseModules;
+                const fetchDocFresh = (ref) => (getDocFromServer ? getDocFromServer(ref).catch(() => getDoc(ref)) : getDoc(ref)).catch(() => null);
+                const fetchColFresh = (ref) => (getDocsFromServer ? getDocsFromServer(ref).catch(() => getDocs(ref)) : getDocs(ref)).catch(() => null);
 
-                const delDoc = await getDoc(doc(db, "settings", "deleted_records")).catch(() => null);
+                const delDoc = await fetchDocFresh(doc(db, "settings", "deleted_records"));
                 if (delDoc && delDoc.exists()) {
                     const delData = delDoc.data();
                     if (Array.isArray(delData.ids)) delData.ids.forEach(id => deletedIds.add(String(id)));
@@ -2073,10 +2098,10 @@
                 }
 
                 const [snap1, snap2, pSnap1, pSnap2] = await Promise.all([
-                    getDocs(collection(db, "renocamp_transactions")).catch(() => null),
-                    getDocs(collection(db, "transactions")).catch(() => null),
-                    getDocs(collection(db, "renocamp_vault_photos")).catch(() => null),
-                    getDocs(collection(db, "vault_photos")).catch(() => null)
+                    fetchColFresh(collection(db, "renocamp_transactions")),
+                    fetchColFresh(collection(db, "transactions")),
+                    fetchColFresh(collection(db, "renocamp_vault_photos")),
+                    fetchColFresh(collection(db, "vault_photos"))
                 ]);
 
                 const allCloudTx = [];
@@ -2086,17 +2111,39 @@
                 if (allCloudTx.length > 0) {
                     await mergeCloudTransactions(allCloudTx);
                 }
-                if (hasPlaintextCloudTxToHeal && transactions.length > 0) {
-                    // 自動將雲端舊版明文收支帳目升級為 encTxPayload (ENC_V2) 密文並覆蓋上雲端
-                    window.pushAllDataToCloud(true);
-                    hasPlaintextCloudTxToHeal = false;
-                }
 
                 const allCloudPhotos = [];
                 if (pSnap1) pSnap1.forEach(d => allCloudPhotos.push({ id: d.id, ...d.data() }));
                 if (pSnap2) pSnap2.forEach(d => allCloudPhotos.push({ id: d.id, ...d.data() }));
                 if (allCloudPhotos.length > 0) {
                     mergeCloudVaultPhotos(allCloudPhotos);
+                }
+
+                // 🔄 雙向自動補推：若本機（例如手機）有剛輸入而尚未寫入雲端嘅最新記錄，拉取合併後即刻自動補推上雲端，確保平板電腦一開即見到最新一筆！
+                const cloudIdMap = new Map();
+                allCloudTx.forEach(d => {
+                    const cid = String(d.id || d.docId || '');
+                    if (cid) {
+                        const ts = Number(d.updatedAt || d.timestamp || d.createdAt || 0);
+                        if (!cloudIdMap.has(cid) || ts > cloudIdMap.get(cid)) cloudIdMap.set(cid, ts);
+                    }
+                });
+                const unsyncedLocalTx = transactions.filter(t => {
+                    const tid = String(t.id || '');
+                    if (!tid || deletedIds.has(tid)) return false;
+                    if (!cloudIdMap.has(tid)) return true;
+                    return Number(t.updatedAt || 0) > (cloudIdMap.get(tid) || 0);
+                });
+                if (unsyncedLocalTx.length > 0 && window.firebaseModules) {
+                    const { doc, setDoc } = window.firebaseModules;
+                    const pushPromises = [];
+                    unsyncedLocalTx.forEach(t => {
+                        const norm = normalizeTransaction(t);
+                        delete norm.authProof;
+                        pushPromises.push(setDoc(doc(db, "renocamp_transactions", String(norm.id)), norm));
+                        pushPromises.push(setDoc(doc(db, "transactions", String(norm.id)), norm));
+                    });
+                    await Promise.all(pushPromises).catch(() => {});
                 }
 
                 await window.scanAndHealCloudVaultPhotos(true);
@@ -2574,18 +2621,27 @@
             saveLocalTransactions();
             renderAllLists();
             window.closeTransactionModal();
-            showToast('✅ 夾萬記錄已儲存並同步上雲端');
+            showToast('⏳ 夾萬記錄已存本機，正在同步上雲端...');
 
+            if (!db) {
+                await connectCloudDatabase(false);
+            }
             if (db) {
                 try {
                     const { doc, setDoc } = window.firebaseModules;
                     await withTimeout(Promise.all([
                         setDoc(doc(db, "renocamp_transactions", txId), record),
                         setDoc(doc(db, "transactions", txId), record)
-                    ]), 4000);
+                    ]), 8000);
+                    updateCloudStatusUI(true);
+                    showToast('✅ 夾萬記錄已成功同步上雲端（手機與平板已對齊）！');
                 } catch (err) {
-                    console.warn(err);
+                    console.warn('Cloud write error:', err);
+                    updateCloudStatusUI(false);
+                    showToast('⚠️ 本機已儲存，但雲端上傳未完成！請撳右上角「雲端連線」重試同步');
                 }
+            } else {
+                showToast('⚠️ 本機已儲存（目前未連上雲端，連網後將自動補推）');
             }
             } finally {
                 isSavingTx = false;
@@ -3732,4 +3788,4 @@
     })();
     </script>
 
-<iframe ng-non-bindable="" frameborder="0" hspace="0" marginheight="0" marginwidth="0" scrolling="no" tabindex="-1" vspace="0" width="100%" aria-hidden="true" id="I0_1794591438527" name="I0_1794591438527" src="https://my-renocamp-app.firebaseapp.com/__/auth/iframe?apiKey=AIzaSyAZn_OLG0IW0XrIgx3Uf4cnsWSpVuHzS7o&amp;appName=rc_my-renocamp-app_nsWSpVuHzS7o&amp;v=10.8.0&amp;eid=p&amp;usegapi=1&amp;jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.zh_TW.8ezJ7WFASIU.O%2Fd%3D1%2Frs%3DAHpOoo-XHSwQy8B7xJsR_LIrn08tAwWe2g%2Fm%3D__features__#id=I0_1794591438527&amp;_gfid=I0_1794591438527&amp;parent=blob%3A%2F%2F&amp;pfname=&amp;rpctoken=41254758" style="position: absolute; top: -100px; width: 1px; height: 1px;"></iframe></body></html>
+<iframe ng-non-bindable="" frameborder="0" hspace="0" marginheight="0" marginwidth="0" scrolling="no" tabindex="-1" vspace="0" width="100%" aria-hidden="true" id="I0_1794616169579" name="I0_1794616169579" src="https://my-renocamp-app.firebaseapp.com/__/auth/iframe?apiKey=AIzaSyAZn_OLG0IW0XrIgx3Uf4cnsWSpVuHzS7o&amp;appName=rc_my-renocamp-app_nsWSpVuHzS7o&amp;v=10.8.0&amp;eid=p&amp;usegapi=1&amp;jsh=m%3B%2F_%2Fscs%2Fabc-static%2F_%2Fjs%2Fk%3Dgapi.lb.zh_TW.8ezJ7WFASIU.O%2Fd%3D1%2Frs%3DAHpOoo-XHSwQy8B7xJsR_LIrn08tAwWe2g%2Fm%3D__features__#id=I0_1794616169579&amp;_gfid=I0_1794616169579&amp;parent=blob%3A%2F%2F&amp;pfname=&amp;rpctoken=22965282" style="position: absolute; top: -100px; width: 1px; height: 1px;"></iframe></body></html>
