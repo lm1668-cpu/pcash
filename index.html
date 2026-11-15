@@ -178,8 +178,8 @@
                     🔒 鎖定
                 </button>
                 <div onclick="window.syncNowManual()" id="header-cloud-status" class="cursor-pointer px-2.5 py-1.5 bg-emerald-950/80 border border-emerald-500/40 rounded-full text-[11px] font-bold text-emerald-400 flex items-center gap-1" title="撳一下即刻雙向同步">
-                    <span id="header-cloud-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span id="header-cloud-text">雲端已連線</span>
+                    <span id="header-cloud-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <span id="header-cloud-text">連線中 / 點擊重試</span>
                 </div>
             </div>
         </div>
@@ -435,7 +435,7 @@
                     <h3 class="text-sm font-black text-slate-900 flex items-center gap-1.5">
                         ☁️ 跨裝置雲端實時同步中心 (iPhone / iPad / 電腦)
                     </h3>
-                    <span id="diag-status-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800">檢測中...</span>
+                    <span id="diag-status-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-800">🟡 請檢查網絡或規則</span>
                 </div>
                 <p class="text-xs text-slate-500 mb-3">所有裝置共用同一個 <code class="bg-slate-100 px-1.5 py-0.5 rounded font-bold text-slate-700">my-renocamp-app</code> 雲端資料庫，任何一部機加數、改名、刪數或上傳夾萬相，其他裝置自動同步。</p>
 
@@ -512,7 +512,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
                     <input type="text" id="gh-owner" placeholder="GitHub 帳號 (如 lm1668-cpu)" class="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
                     <input type="text" id="gh-repo" placeholder="倉庫名稱 (如 pcash)" class="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
-                    <input type="password" id="gh-token" autocomplete="off" placeholder="GitHub Token (ghp_...)" class="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
+                    <input type="password" id="gh-token" autocomplete="off" placeholder="🔒 Token 已鎖入安全記憶體（不外露於輸入框；如需更換請直接輸入）" class="px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
                 </div>
                 <button type="button" onclick="window.deployToGitHub()" id="gh-deploy-btn" class="w-full py-3 bg-brand-500 hover:bg-brand-600 text-slate-900 font-black text-xs rounded-2xl shadow-md transition">
                     🚀 一鍵推送到 GitHub (連埋頭像、橫幅及安全鎖)
@@ -566,7 +566,7 @@
                 <h3 class="text-sm font-black text-slate-800 mb-3">🛡️ 安全密碼與師傅頭像橫幅</h3>
                 <div class="space-y-3">
                     <div class="flex gap-2">
-                        <input type="password" id="settings-new-pin" maxlength="16" autocomplete="new-password" placeholder="輸入新安全 PIN 碼 (建議 6-16 位純數字)" class="flex-1 px-3 py-2 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300">
+                        <input type="password" id="settings-new-pin" maxlength="32" autocomplete="new-password" placeholder="輸入新安全長密碼 / PIN (支援 6-32 位數字或混合密碼)" class="flex-1 px-3 py-2 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300">
                         <button type="button" onclick="window.saveNewPin()" class="px-4 py-2 bg-slate-900 text-white text-xs font-black rounded-xl">儲存密碼 (同步上雲端)</button>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
@@ -1063,19 +1063,23 @@
             return diff === 0;
         }
 
-        async function deriveVaultAesKey(pinStr, saltBytes, iterations = PBKDF2_ITERATIONS_V2) {
+        // 🔐 [第 3 點加固] 將本機 256-bit Device Pepper 混入 AES-256-GCM KDF 金鑰衍生 (useDevicePepper)
+        async function deriveVaultAesKey(pinStr, saltBytes, iterations = PBKDF2_ITERATIONS_V2, useDevicePepper = false) {
             const effectivePin = String(pinStr || activeSessionPin || '').trim();
             if (!effectivePin) {
                 throw new Error('VAULT_LOCKED_NO_SESSION_PIN');
             }
             const actualSalt = saltBytes || LEGACY_CRYPTO_SALT;
-            const cacheKey = `${effectivePin}|${uint8ToBase64(actualSalt)}|${iterations}`;
+            const kdfSecret = useDevicePepper
+                ? `${effectivePin}|RC_AES_DEV_PEPPER_V3|${getOrCreateDevicePepper()}`
+                : effectivePin;
+            const cacheKey = `${kdfSecret}|${uint8ToBase64(actualSalt)}|${iterations}`;
             if (_derivedKeyCache.has(cacheKey)) {
                 return _derivedKeyCache.get(cacheKey);
             }
             const baseKey = await _nativeImportKey(
                 'raw',
-                new _NativeTextEncoder().encode(effectivePin),
+                new _NativeTextEncoder().encode(kdfSecret),
                 { name: 'PBKDF2' },
                 false,
                 ['deriveKey']
@@ -1087,7 +1091,7 @@
                 false,
                 ['encrypt', 'decrypt']
             );
-            if (_derivedKeyCache.size > 60) _derivedKeyCache.clear();
+            if (_derivedKeyCache.size > 80) _derivedKeyCache.clear();
             _derivedKeyCache.set(cacheKey, derived);
             return derived;
         }
@@ -1110,26 +1114,31 @@
             return bytes;
         }
 
-        // 🔐 Fail-Closed 端對端加密 (ENC_V2：獨立 16-byte 隨機 Salt + 12-byte 隨機 IV + 210,000 次 PBKDF2)
-        // 嚴禁喺失敗時退回明文！加密失敗即刻拋出錯誤並阻斷上傳
-        async function encryptSensitiveString(plainText, pinOverride) {
+        // 🔐 Fail-Closed 端對端加密 (ENC_V2：跨裝置雲端同步專用；ENC_V2P：混入本機 256-bit Device Pepper 嘅本機靜態儲存專用)
+        async function encryptSensitiveString(plainText, pinOverride, useDevicePepper = false) {
             if (!plainText) return '';
             const strVal = String(plainText);
-            if (strVal.startsWith('ENC_V2:') || strVal.startsWith('ENC_V1:')) return strVal;
+            if (strVal.startsWith('ENC_V2P:') || strVal.startsWith('ENC_V2:') || strVal.startsWith('ENC_V1:')) return strVal;
 
             const salt = _nativeGetRandomValues(new Uint8Array(16));
             const iv = _nativeGetRandomValues(new Uint8Array(12));
-            const key = await deriveVaultAesKey(pinOverride, salt, PBKDF2_ITERATIONS_V2);
+            const iterations = useDevicePepper ? PBKDF2_PIN_VERIFY_ITERATIONS_V2 : PBKDF2_ITERATIONS_V2;
+            const key = await deriveVaultAesKey(pinOverride, salt, iterations, useDevicePepper);
             const encoded = new _NativeTextEncoder().encode(strVal);
             const cipherBuf = await _nativeEncrypt({ name: 'AES-GCM', iv }, key, encoded);
-            const result = `ENC_V2:${uint8ToBase64(salt)}:${uint8ToBase64(iv)}:${uint8ToBase64(new Uint8Array(cipherBuf))}`;
-            if (!result.startsWith('ENC_V2:')) {
+            const prefix = useDevicePepper ? 'ENC_V2P' : 'ENC_V2';
+            const result = `${prefix}:${uint8ToBase64(salt)}:${uint8ToBase64(iv)}:${uint8ToBase64(new Uint8Array(cipherBuf))}`;
+            if (!result.startsWith(prefix + ':')) {
                 throw new Error('ENCRYPTION_INTEGRITY_CHECK_FAILED');
             }
             return result;
         }
 
-        // 🔓 兼容解密引擎（支援最新 ENC_V2 動態鹽密文及舊版 ENC_V1 密文；內置閉包快取防止重複 PBKDF2 解密）
+        async function encryptLocalSensitiveString(plainText, pinOverride) {
+            return encryptSensitiveString(plainText, pinOverride, true);
+        }
+
+        // 🔓 兼容解密引擎（支援本機 Device Pepper 加固版 ENC_V2P、跨裝置 ENC_V2 及舊版 ENC_V1 密文）
         async function decryptSensitiveString(payload, pinOverride) {
             if (!payload || typeof payload !== 'string') return '';
             if (!isAppUnlocked && !pinOverride) return '';
@@ -1139,14 +1148,16 @@
                 return _cipherDecryptCache.get(cacheKey);
             }
 
-            if (payload.startsWith('ENC_V2:')) {
+            if (payload.startsWith('ENC_V2P:') || payload.startsWith('ENC_V2:')) {
+                const isPeppered = payload.startsWith('ENC_V2P:');
                 const parts = payload.split(':');
                 if (parts.length !== 4) return '';
                 try {
                     const salt = base64ToUint8(parts[1]);
                     const iv = base64ToUint8(parts[2]);
                     const cipherBytes = base64ToUint8(parts[3]);
-                    const key = await deriveVaultAesKey(pinOverride, salt, PBKDF2_ITERATIONS_V2);
+                    const iterations = isPeppered ? PBKDF2_PIN_VERIFY_ITERATIONS_V2 : PBKDF2_ITERATIONS_V2;
+                    const key = await deriveVaultAesKey(pinOverride, salt, iterations, isPeppered);
                     const plainBuf = await _nativeDecrypt({ name: 'AES-GCM', iv }, key, cipherBytes);
                     const decoded = new _NativeTextDecoder().decode(plainBuf);
                     if (_cipherDecryptCache.size > 2000) _cipherDecryptCache.clear();
@@ -1287,7 +1298,36 @@
         let userPinHash = safeStorageGet('renocamp_pin_hash', '');
         let boundOwnerUid = safeStorageGet('renocamp_owner_uid', '');
         let sessionFbApiKey = '';
+        let sessionGhToken = '';
         let cloudAuthCreds = { email: '', password: '' };
+
+        function syncSecretFieldPlaceholders() {
+            const tokEl = document.getElementById('gh-token');
+            if (tokEl) {
+                tokEl.value = '';
+                tokEl.removeAttribute('value');
+                tokEl.placeholder = sessionGhToken
+                    ? '🔒 Token 已鎖入安全記憶體（不外露於輸入框；如需更換請直接輸入）'
+                    : 'GitHub Token (ghp_...)';
+            }
+            const keyEl = document.getElementById('fb-api-key');
+            if (keyEl) {
+                keyEl.value = '';
+                keyEl.removeAttribute('value');
+                keyEl.placeholder = sessionFbApiKey
+                    ? '🔒 API Key 已鎖入安全記憶體（不外露於輸入框；如需更換請輸入）'
+                    : 'AIzaSy...';
+            }
+            const pwEl = document.getElementById('fb-auth-password');
+            if (pwEl) {
+                pwEl.type = 'password';
+                pwEl.value = '';
+                pwEl.removeAttribute('value');
+                pwEl.placeholder = (cloudAuthCreds && cloudAuthCreds.password)
+                    ? '🔒 雲端高強度密碼已鎖入安全記憶體（不外露於輸入框）'
+                    : '撳右邊掣自動生成 24 位亂碼';
+            }
+        }
 
         // 自動遷移並徹底銷毀舊版 localStorage 明文 PIN ('renocamp_pin')，嚴禁任何硬編碼預設密碼
         (async function migrateAndPurgePlaintextPin() {
@@ -1320,8 +1360,8 @@
             if (!isAppUnlocked || !activeSessionPin) return;
             const pinSnap = activeSessionPin;
             const photosJson = JSON.stringify(vaultPhotos);
-            encryptSensitiveString(photosJson, pinSnap).then(enc => {
-                if (enc && enc.startsWith('ENC_V2:')) {
+            encryptLocalSensitiveString(photosJson, pinSnap).then(enc => {
+                if (enc && enc.startsWith('ENC_V2')) {
                     safeStorageSet('renocamp_vault_photos_enc', enc);
                     safeStorageRemove('renocamp_vault_photos');
                 }
@@ -1335,8 +1375,8 @@
                 ids: Array.from(deletedIds),
                 photoIds: Array.from(deletedPhotoIds)
             });
-            encryptSensitiveString(delJson, pinSnap).then(enc => {
-                if (enc && enc.startsWith('ENC_V2:')) {
+            encryptLocalSensitiveString(delJson, pinSnap).then(enc => {
+                if (enc && enc.startsWith('ENC_V2')) {
                     safeStorageSet('renocamp_deleted_tombstones_enc', enc);
                     safeStorageRemove('renocamp_deleted_ids');
                     safeStorageRemove('renocamp_deleted_photo_ids');
@@ -1525,21 +1565,37 @@
             if (input) input.value = '•'.repeat(_isolatedPinBuffer.length);
         }
 
-        // 🔐 PIN 碼輸入（支援最高 16 位高強度數字密碼，唔會自動登入，必須親手撳「登入 →」掣先解鎖）
+        // 🔐 PIN / 長密碼輸入（支援最高 32 位高強度數字或鍵盤長密碼，唔會自動登入，必須親手撳「登入 →」掣先解鎖）
         window.appendPin = function(digit) {
             loadPersistentLockState();
             if (Date.now() < lockUntilTimestamp) {
                 startLockoutCountdownIfNeeded();
                 return;
             }
-            const cleanDigit = String(digit ?? '').replace(/\D/g, '').slice(0, 1);
-            if (!cleanDigit) return;
-            if (_isolatedPinBuffer.length < 16) {
-                _isolatedPinBuffer += cleanDigit;
+            const cleanChar = String(digit ?? '').slice(0, 1);
+            if (!cleanChar) return;
+            if (_isolatedPinBuffer.length < 32) {
+                _isolatedPinBuffer += cleanChar;
                 syncPinMaskDisplay();
                 document.getElementById('pin-error-msg').textContent = '';
             }
         };
+        window.addEventListener('keydown', (e) => {
+            if (isAppUnlocked) return;
+            const activeTag = document.activeElement ? document.activeElement.tagName : '';
+            if (activeTag === 'INPUT' && document.activeElement.id !== 'pin-input') return;
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.key === 'Backspace') {
+                e.preventDefault();
+                window.deletePin();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                window.verifyPin();
+            } else if (e.key && e.key.length === 1 && !/\s/.test(e.key)) {
+                e.preventDefault();
+                window.appendPin(e.key);
+            }
+        });
         window.deletePin = function() {
             _isolatedPinBuffer = _isolatedPinBuffer.slice(0, -1);
             syncPinMaskDisplay();
@@ -1587,7 +1643,7 @@
                     }
                 } catch (_) {}
             }
-            if (!userPinHash && embeddedAuthEnc && embeddedAuthEnc.startsWith('ENC_V2:')) {
+            if (!userPinHash && embeddedAuthEnc && embeddedAuthEnc.startsWith('ENC_V2')) {
                 const testDec = await decryptSensitiveString(embeddedAuthEnc, input);
                 if (testDec) {
                     userPinHash = await createPbkdf2PinVerifier(input);
@@ -1617,7 +1673,7 @@
                 isMatch = true;
             } else {
                 isMatch = await verifyPinAgainstStoredVerifier(input, userPinHash);
-                if (!isMatch && embeddedAuthEnc && embeddedAuthEnc.startsWith('ENC_V2:')) {
+                if (!isMatch && embeddedAuthEnc && embeddedAuthEnc.startsWith('ENC_V2')) {
                     const testDec = await decryptSensitiveString(embeddedAuthEnc, input);
                     if (testDec) {
                         userPinHash = await createPbkdf2PinVerifier(input);
@@ -1710,19 +1766,22 @@
         window.generateRandomCloudPassword = function() {
             if (!isAppUnlocked) return;
             const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
-            const arr = crypto.getRandomValues(new Uint8Array(24));
+            const arr = _nativeGetRandomValues(new Uint8Array(24));
             let pwd = '';
             for (let i = 0; i < arr.length; i++) pwd += chars[arr[i] % chars.length];
-            const pwdInput = document.getElementById('fb-auth-password');
-            if (pwdInput) {
-                pwdInput.type = 'text';
-                pwdInput.value = pwd;
-            }
             const emailInput = document.getElementById('fb-auth-email');
             if (emailInput && !emailInput.value.trim()) {
                 emailInput.value = 'vault-owner@renocamp.local';
             }
-            showToast('🎲 已生成 24 位高強度雲端密碼！撳下方「綁定並加密儲存」即可自動開通');
+            cloudAuthCreds.email = (emailInput && emailInput.value.trim()) || cloudAuthCreds.email || 'vault-owner@renocamp.local';
+            cloudAuthCreds.password = pwd;
+            // 🛡️ [第 4 點加固] 生成嘅 24 位密碼直接存入私有閉包記憶體，絕不寫入 DOM <input>.value！
+            syncSecretFieldPlaceholders();
+            const pwdInput = document.getElementById('fb-auth-password');
+            if (pwdInput) {
+                pwdInput.placeholder = '🎲 已在安全記憶體生成 24 位亂碼（撳下方儲存即可綁定）';
+            }
+            showToast('🎲 已在安全記憶體生成 24 位高強度雲端密碼（零 DOM 外露）！請撳下方「儲存並重新連線雲端」');
         };
 
         async function restoreProtectedCredentialsAfterUnlock() {
@@ -1730,15 +1789,21 @@
             try {
                 const legacyToken = safeStorageGet('renocamp_gh_token', '');
                 if (legacyToken && !legacyToken.startsWith('ENC_V')) {
-                    const encTok = await encryptSensitiveString(legacyToken, activeSessionPin);
+                    sessionGhToken = legacyToken.trim();
+                    const encTok = await encryptLocalSensitiveString(sessionGhToken, activeSessionPin);
                     safeStorageSet('renocamp_gh_token_enc', encTok);
                     safeStorageRemove('renocamp_gh_token');
                 }
                 const encTokStored = safeStorageGet('renocamp_gh_token_enc', '');
                 if (encTokStored) {
                     const decTok = await decryptSensitiveString(encTokStored, activeSessionPin);
-                    const tokInput = document.getElementById('gh-token');
-                    if (tokInput && decTok) tokInput.value = decTok;
+                    if (decTok) {
+                        sessionGhToken = decTok.trim();
+                        if (!encTokStored.startsWith('ENC_V2P:')) {
+                            const upgradedTok = await encryptLocalSensitiveString(sessionGhToken, activeSessionPin);
+                            if (upgradedTok) safeStorageSet('renocamp_gh_token_enc', upgradedTok);
+                        }
+                    }
                 }
                 // M2 修復：遷移並徹底銷毀本機 localStorage 明文 renocamp_fb_api_key
                 const legacyPlainApiKey = safeStorageGet('renocamp_fb_api_key', '');
@@ -1760,16 +1825,15 @@
                             password: String(parsedAuth.password || '')
                         };
                         const emEl = document.getElementById('fb-auth-email');
-                        const pwEl = document.getElementById('fb-auth-password');
                         if (emEl && cloudAuthCreds.email) emEl.value = cloudAuthCreds.email;
-                        if (pwEl && cloudAuthCreds.password) {
-                            pwEl.type = 'password';
-                            pwEl.value = cloudAuthCreds.password;
+                        if (!encCloudAuth.startsWith('ENC_V2P:')) {
+                            const upgradedAuth = await encryptLocalSensitiveString(decAuthJson, activeSessionPin);
+                            if (upgradedAuth) safeStorageSet('renocamp_cloud_auth_enc', upgradedAuth);
                         }
                     }
                 }
                 if (legacyPlainApiKey && sessionFbApiKey && !safeStorageGet('renocamp_cloud_auth_enc', '')) {
-                    const migratedAuth = await encryptSensitiveString(JSON.stringify({
+                    const migratedAuth = await encryptLocalSensitiveString(JSON.stringify({
                         projectId: safeStorageGet('renocamp_fb_project_id', 'my-renocamp-app'),
                         apiKey: sessionFbApiKey,
                         email: cloudAuthCreds.email || '',
@@ -1778,8 +1842,8 @@
                     }), activeSessionPin);
                     if (migratedAuth) safeStorageSet('renocamp_cloud_auth_enc', migratedAuth);
                 }
-                const keyEl = document.getElementById('fb-api-key');
-                if (keyEl && sessionFbApiKey) keyEl.value = sessionFbApiKey;
+                // 🛡️ [第 4 點加固] 解鎖後絕不將 GitHub Token、Firebase API Key 或雲端密碼寫入 DOM <input>.value，只更新安全狀態 Placeholder
+                syncSecretFieldPlaceholders();
                 updateOwnerUidUI(boundOwnerUid);
 
                 // M2 修復：遷移並解密本機自訂下拉選單 (renocamp_dropdowns_enc)，銷毀明文 renocamp_dropdowns
@@ -1991,8 +2055,10 @@
                 }
             });
             sessionFbApiKey = '';
+            sessionGhToken = '';
             safeStorageRemove('renocamp_fb_api_key');
             cloudAuthCreds = { email: '', password: '' };
+            syncSecretFieldPlaceholders();
             customDropdowns = JSON.parse(JSON.stringify(DEFAULT_DROPDOWNS));
             globalSearchQuery = '';
             const clearSearchBtn = document.getElementById('clear-search-btn');
@@ -2043,9 +2109,13 @@
         window.saveCustomFirebaseConfig = async function() {
             if (!isAppUnlocked || !activeSessionPin) return;
             const proj = document.getElementById('fb-project-id').value.trim() || 'my-renocamp-app';
-            const key = document.getElementById('fb-api-key').value.trim();
-            const email = document.getElementById('fb-auth-email').value.trim();
-            const password = document.getElementById('fb-auth-password').value.trim();
+            const typedKey = document.getElementById('fb-api-key').value.trim();
+            const typedEmail = document.getElementById('fb-auth-email').value.trim();
+            const typedPassword = document.getElementById('fb-auth-password').value.trim();
+
+            const key = typedKey || sessionFbApiKey;
+            const email = typedEmail || cloudAuthCreds.email;
+            const password = typedPassword || cloudAuthCreds.password;
 
             if (!key) {
                 showToast('⚠️ 請填入 Firebase Web API Key (AIzaSy... 開頭)！');
@@ -2061,8 +2131,9 @@
                     return;
                 }
                 cloudAuthCreds = { email, password };
-                document.getElementById('fb-auth-password').type = 'password';
             }
+            // 🛡️ [第 4 點加固] 讀取後即刻清空 DOM 輸入框 .value，絕不留存明文機密於表單欄位
+            syncSecretFieldPlaceholders();
             const payload = JSON.stringify({
                 projectId: proj,
                 apiKey: sessionFbApiKey,
@@ -2070,7 +2141,7 @@
                 password: cloudAuthCreds.password || password,
                 ownerUid: boundOwnerUid
             });
-            const encAuth = await encryptSensitiveString(payload, activeSessionPin);
+            const encAuth = await encryptLocalSensitiveString(payload, activeSessionPin);
             safeStorageSet('renocamp_cloud_auth_enc', encAuth);
             showToast('🔐 正在以專屬管理員憑證登入 Firebase Auth...');
             await connectCloudDatabase(true);
@@ -2085,7 +2156,7 @@
         async function connectCloudDatabase(isExplicitBind = false) {
             if (!isAppUnlocked) return;
             try {
-                if (!window['firebaseModules']) return;
+                if (!_fbModules) return;
                 const { initializeApp, getApps, getFirestore, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = _fbModules;
                 const cfg = getFirebaseConfig();
                 if (!cfg.apiKey) {
@@ -2145,7 +2216,7 @@
                                 password: cloudAuthCreds.password,
                                 ownerUid: userCred.user.uid
                             });
-                            const encAuth = await encryptSensitiveString(updatedPayload, activeSessionPin);
+                            const encAuth = await encryptLocalSensitiveString(updatedPayload, activeSessionPin);
                             safeStorageSet('renocamp_cloud_auth_enc', encAuth);
                             if (isExplicitBind) {
                                 showToast(`✅ 已成功綁定專屬 UID (${userCred.user.uid.slice(0, 8)}...)！`);
@@ -2562,8 +2633,8 @@
             if (!isAppUnlocked || !activeSessionPin) return;
             const pinSnap = activeSessionPin;
             const txSnapshot = JSON.stringify(transactions);
-            encryptSensitiveString(txSnapshot, pinSnap).then(enc => {
-                if (enc && enc.startsWith('ENC_V2:')) {
+            encryptLocalSensitiveString(txSnapshot, pinSnap).then(enc => {
+                if (enc && enc.startsWith('ENC_V2')) {
                     safeStorageSet('renocamp_transactions_enc', enc);
                     safeStorageRemove('renocamp_transactions');
                 }
@@ -3488,14 +3559,18 @@
 
             let cryptoSelfTestOk = false;
             try {
-                const sampleCipher = await encryptSensitiveString('VAULT_SELFTEST_OK', activeSessionPin);
+                const sampleCipher = await encryptLocalSensitiveString('VAULT_SELFTEST_OK', activeSessionPin);
                 const samplePlain = await decryptSensitiveString(sampleCipher, activeSessionPin);
                 const sampleTxCipherDoc = await buildEncryptedCloudTxDoc({ id: 'selftest', type: 'income', amount: 888, person: '測試' }, activeSessionPin);
-                cryptoSelfTestOk = sampleCipher.startsWith('ENC_V2:')
+                const noDomSecretsExposed = !document.getElementById('gh-token')?.value
+                    && !document.getElementById('fb-api-key')?.value
+                    && !document.getElementById('fb-auth-password')?.value;
+                cryptoSelfTestOk = sampleCipher.startsWith('ENC_V2P:')
                     && samplePlain === 'VAULT_SELFTEST_OK'
                     && sampleTxCipherDoc.encTxPayload.startsWith('ENC_V2:')
                     && sampleTxCipherDoc.amount === 0
-                    && !('person' in sampleTxCipherDoc);
+                    && !('person' in sampleTxCipherDoc)
+                    && noDomSecretsExposed;
             } catch (_) {}
 
             const checks = [
@@ -3948,7 +4023,7 @@
         window.saveNewPin = async function() {
             if (!isAppUnlocked || !activeSessionPin) return;
             const p = document.getElementById('settings-new-pin').value.trim();
-            if (/^\d{6,16}$/.test(p)) {
+            if (p.length >= 6 && p.length <= 32) {
                 const oldPin = activeSessionPin;
                 for (let i = 0; i < vaultPhotos.length; i++) {
                     const plainPhoto = await decryptSensitiveString(vaultPhotos[i].photo, oldPin);
@@ -3966,12 +4041,13 @@
                     vaultPhotos[i].statusBadge = '🔐 AES-256 端對端加密保護';
                     vaultPhotos[i].updatedAt = Date.now();
                 }
-                saveLocalVaultPhotos();
 
-                // 同步以新 PIN 重新加密本機儲存嘅 GitHub Token
+                // 同步以新密碼 + Device Pepper 重新加密本機儲存嘅 GitHub Token
                 const ghTokenInput = document.getElementById('gh-token');
-                if (ghTokenInput && ghTokenInput.value.trim()) {
-                    const reEncTok = await encryptSensitiveString(ghTokenInput.value.trim(), p);
+                const tokToSave = (ghTokenInput && ghTokenInput.value.trim()) || sessionGhToken;
+                if (tokToSave) {
+                    sessionGhToken = tokToSave;
+                    const reEncTok = await encryptLocalSensitiveString(sessionGhToken, p);
                     safeStorageSet('renocamp_gh_token_enc', reEncTok);
                 }
 
@@ -3979,21 +4055,24 @@
                 userPinHash = await createPbkdf2PinVerifier(p);
                 safeStorageSet('renocamp_pin_hash', userPinHash);
                 safeStorageRemove('renocamp_pin');
-                // 同步以新 PIN 重新加密本機收支帳目緩存與自訂下拉選單
+                saveLocalVaultPhotos();
+                saveLocalDeletedTombstones();
+                // 同步以新密碼 + Device Pepper 重新加密本機收支帳目緩存與自訂下拉選單
                 saveLocalTransactions();
-                const reEncDrop = await encryptSensitiveString(JSON.stringify(customDropdowns), p);
+                const reEncDrop = await encryptLocalSensitiveString(JSON.stringify(customDropdowns), p);
                 if (reEncDrop) {
                     safeStorageSet('renocamp_dropdowns_enc', reEncDrop);
                     safeStorageRemove('renocamp_dropdowns');
                 }
                 document.getElementById('settings-new-pin').value = '';
+                syncSecretFieldPlaceholders();
                 await renderVaultPhotosGrid();
                 await window.pushAllDataToCloud(true);
-                showToast('✅ 新安全 PIN 碼已儲存，所有夾萬相片及實點銀碼已用新密碼重新加密！');
-                // 同步以新 PIN 重新加密方案 A 嘅 Firebase 管理員憑證
-                if (cloudAuthCreds.email && cloudAuthCreds.password) {
+                showToast('✅ 新安全密碼已儲存，所有本機與雲端密文已重新加密！');
+                // 同步以新密碼 + Device Pepper 重新加密方案 A 嘅 Firebase 管理員憑證
+                if (sessionFbApiKey || (cloudAuthCreds.email && cloudAuthCreds.password)) {
                     const cfg = getFirebaseConfig();
-                    const reEncAuth = await encryptSensitiveString(JSON.stringify({
+                    const reEncAuth = await encryptLocalSensitiveString(JSON.stringify({
                         projectId: cfg.projectId,
                         apiKey: cfg.apiKey,
                         email: cloudAuthCreds.email,
@@ -4003,7 +4082,7 @@
                     safeStorageSet('renocamp_cloud_auth_enc', reEncAuth);
                 }
             } else {
-                showToast('⚠️ 為確保金庫級安全，請輸入 6 至 16 位純數字安全 PIN 碼！');
+                showToast('⚠️ 為確保金庫級安全，請輸入 6 至 32 位高強度安全 PIN 或混合長密碼！');
             }
         };
 
@@ -4011,7 +4090,13 @@
             if (!isAppUnlocked || !activeSessionPin) return;
             const owner = document.getElementById('gh-owner').value.trim();
             const repo = document.getElementById('gh-repo').value.trim();
-            const token = document.getElementById('gh-token').value.trim();
+            const typedToken = document.getElementById('gh-token').value.trim();
+            if (typedToken) {
+                sessionGhToken = typedToken;
+            }
+            const token = sessionGhToken;
+            // 🛡️ [第 4 點加固] 讀取後即刻清空 #gh-token 輸入框 .value，絕不留存明文 Token 於 DOM
+            syncSecretFieldPlaceholders();
             const statusEl = document.getElementById('gh-deploy-status');
             const deployBtn = document.getElementById('gh-deploy-btn');
 
@@ -4021,8 +4106,8 @@
             }
             safeStorageSet('renocamp_gh_owner', owner);
             safeStorageSet('renocamp_gh_repo', repo);
-            // 背景以 AES-256 加密儲存 GitHub Token，絕不阻塞推送流程
-            encryptSensitiveString(token, activeSessionPin).then(encToken => {
+            // 背景以 AES-256 + Device Pepper (ENC_V2P) 加密儲存 GitHub Token，絕不阻塞推送流程
+            encryptLocalSensitiveString(token, activeSessionPin).then(encToken => {
                 if (encToken) {
                     safeStorageSet('renocamp_gh_token_enc', encToken);
                     safeStorageRemove('renocamp_gh_token');
