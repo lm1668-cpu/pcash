@@ -380,7 +380,7 @@
             <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-200">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-sm font-black text-slate-800">🗂️ 雲端加密夾萬相片留底記錄</h3>
-                    <span id="vault-photos-count" class="text-xs font-bold text-slate-400">共 0 張加密相片</span>
+                    <span id="vault-photos-count" class="text-xs font-bold text-slate-400">共 0 張相片</span>
                 </div>
                 <div id="vault-photos-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
             </div>
@@ -1357,6 +1357,14 @@
                     ? '🔒 API Key 已鎖入安全記憶體（不外露於輸入框；如需更換請輸入）'
                     : 'AIzaSy...';
             }
+            const emEl = document.getElementById('fb-auth-email');
+            if (emEl) {
+                emEl.value = '';
+                emEl.removeAttribute('value');
+                emEl.placeholder = (cloudAuthCreds && cloudAuthCreds.email)
+                    ? '🔒 管理員電郵已鎖入安全記憶體（如需更換請直接輸入）'
+                    : 'vault@renocamp.local';
+            }
             const pwEl = document.getElementById('fb-auth-password');
             if (pwEl) {
                 pwEl.type = 'password';
@@ -1421,6 +1429,57 @@
                     safeStorageRemove('renocamp_deleted_photo_ids');
                 }
             }).catch(() => {});
+        }
+
+        // 🔐 [中危 3 修復] 雲端刪除墓碑 settings/deleted_records 全面封裝為 ENC_V2 密文 (encTombstones)，杜絕雲端明文暴露刪除數量與毫秒級時間戳
+        async function buildEncryptedCloudTombstonesDoc(pinOverride) {
+            const plainJson = JSON.stringify({
+                ids: Array.from(deletedIds),
+                photoIds: Array.from(deletedPhotoIds)
+            });
+            const encTombstones = await encryptSensitiveString(plainJson, pinOverride || activeSessionPin);
+            return {
+                encTombstones,
+                encrypted: true,
+                cipherVersion: 'ENC_V2_PBKDF2_210K',
+                updatedAt: Date.now()
+            };
+        }
+
+        async function applyCloudDeletedRecordsDoc(delData, pinOverride) {
+            if (!delData || typeof delData !== 'object') return { txChanged: false, photoChanged: false };
+            let idsArr = Array.isArray(delData.ids) ? delData.ids : [];
+            let photoIdsArr = Array.isArray(delData.photoIds) ? delData.photoIds : [];
+            if (delData.encTombstones && String(delData.encTombstones).startsWith('ENC_V')) {
+                const decStr = await decryptSensitiveString(delData.encTombstones, pinOverride || activeSessionPin);
+                if (decStr) {
+                    try {
+                        const parsed = JSON.parse(decStr);
+                        if (Array.isArray(parsed.ids)) idsArr = idsArr.concat(parsed.ids);
+                        if (Array.isArray(parsed.photoIds)) photoIdsArr = photoIdsArr.concat(parsed.photoIds);
+                    } catch (_) {}
+                }
+            }
+            let txChanged = false;
+            let photoChanged = false;
+            idsArr.forEach(id => {
+                const s = String(id);
+                if (s && !deletedIds.has(s)) {
+                    deletedIds.add(s);
+                    txChanged = true;
+                }
+            });
+            photoIdsArr.forEach(pid => {
+                const s = String(pid);
+                if (s && !deletedPhotoIds.has(s)) {
+                    deletedPhotoIds.add(s);
+                    photoChanged = true;
+                }
+            });
+            if (txChanged || photoChanged) {
+                saveLocalDeletedTombstones();
+            }
+            return { txChanged, photoChanged };
         }
         let localDropdownsUpdatedAt = Number(safeStorageGet('renocamp_dropdowns_updated_at', '0')) || 0;
         let localBrandingUpdatedAt = Number(safeStorageGet('renocamp_branding_updated_at', '0')) || 0;
@@ -1758,8 +1817,10 @@
                 renderAllLists();
                 renderDropdownEditor();
 
-                // 背景非阻塞升級相片及連線雲端，絕不卡住主畫面
-                autoUpgradeVaultPhotosInBackground().then(() => renderVaultPhotosGrid()).catch(() => {});
+                // 背景非阻塞升級相片密文及連線雲端（按需解密：處於主頁時絕不預先解密夾萬相片入隱藏 DOM！）
+                autoUpgradeVaultPhotosInBackground().then(() => {
+                    if (activeTab === 'vault') renderVaultPhotosGrid();
+                }).catch(() => {});
                 connectCloudDatabase();
             } else {
                 failedPinAttempts++;
@@ -1792,7 +1853,10 @@
                     badge.className = 'px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-black';
                 }
                 if (disp) {
-                    disp.textContent = `目前綁定專屬 Owner UID：${boundOwnerUid}（複製下方 Firestore 規則即可鎖死唯讀寫權限）`;
+                    const maskedUid = boundOwnerUid.length > 10
+                        ? `${boundOwnerUid.slice(0, 4)}••••••••${boundOwnerUid.slice(-4)}`
+                        : '已安全鎖入記憶體';
+                    disp.textContent = `目前綁定專屬 Owner UID：${maskedUid}（完整 UID 已鎖入閉包，撳下方一鍵複製規則即可自動帶入）`;
                 }
             } else {
                 if (badge) {
@@ -1812,9 +1876,6 @@
             let pwd = '';
             for (let i = 0; i < arr.length; i++) pwd += chars[arr[i] % chars.length];
             const emailInput = document.getElementById('fb-auth-email');
-            if (emailInput && !emailInput.value.trim()) {
-                emailInput.value = 'vault-owner@renocamp.local';
-            }
             cloudAuthCreds.email = (emailInput && emailInput.value.trim()) || cloudAuthCreds.email || 'vault-owner@renocamp.local';
             cloudAuthCreds.password = pwd;
             // 🛡️ [第 4 點加固] 生成嘅 24 位密碼直接存入私有閉包記憶體，絕不寫入 DOM <input>.value！
@@ -1866,8 +1927,6 @@
                             email: String(parsedAuth.email || ''),
                             password: String(parsedAuth.password || '')
                         };
-                        const emEl = document.getElementById('fb-auth-email');
-                        if (emEl && cloudAuthCreds.email) emEl.value = cloudAuthCreds.email;
                         if (!encCloudAuth.startsWith('ENC_V2P:')) {
                             const upgradedAuth = await encryptLocalSensitiveString(decAuthJson, activeSessionPin);
                             if (upgradedAuth) safeStorageSet('renocamp_cloud_auth_enc', upgradedAuth);
@@ -1884,18 +1943,18 @@
                     }), activeSessionPin);
                     if (migratedAuth) safeStorageSet('renocamp_cloud_auth_enc', migratedAuth);
                 }
-                // 🛡️ [第 4 點加固] 解鎖後絕不將 GitHub Token、Firebase API Key 或雲端密碼寫入 DOM <input>.value，只更新安全狀態 Placeholder
+                // 🛡️ [第 4 及第 5 點加固] 解鎖後絕不將 GitHub Token、Firebase API Key、管理員電郵或雲端密碼寫入 DOM <input>.value，只更新安全狀態 Placeholder
                 syncSecretFieldPlaceholders();
                 updateOwnerUidUI(boundOwnerUid);
 
-                // M2 修復：遷移並解密本機自訂下拉選單 (renocamp_dropdowns_enc)，銷毀明文 renocamp_dropdowns
+                // M2 修復：遷移並以 Device Pepper (ENC_V2P) 解密/升級本機自訂下拉選單 (renocamp_dropdowns_enc)，銷毀明文 renocamp_dropdowns
                 const legacyPlainDrop = safeStorageGet('renocamp_dropdowns', '');
                 if (legacyPlainDrop) {
                     try {
                         const parsedDrop = JSON.parse(legacyPlainDrop);
                         if (parsedDrop && typeof parsedDrop === 'object') customDropdowns = parsedDrop;
                     } catch (_) {}
-                    const encDrop = await encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
+                    const encDrop = await encryptLocalSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
                     if (encDrop) safeStorageSet('renocamp_dropdowns_enc', encDrop);
                     safeStorageRemove('renocamp_dropdowns');
                 } else {
@@ -1904,6 +1963,10 @@
                         const decDropStr = await decryptSensitiveString(encDropStored, activeSessionPin);
                         if (decDropStr) {
                             try { customDropdowns = JSON.parse(decDropStr); } catch (_) {}
+                            if (!encDropStored.startsWith('ENC_V2P:')) {
+                                const upgradedDrop = await encryptLocalSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
+                                if (upgradedDrop) safeStorageSet('renocamp_dropdowns_enc', upgradedDrop);
+                            }
                         }
                     }
                 }
@@ -2275,8 +2338,7 @@
                                                 userCred = await withTimeout(createUserWithEmailAndPassword(auth, autoEmail, cloudAuthCreds.password), 10000);
                                                 if (userCred && userCred.user) {
                                                     cloudAuthCreds.email = autoEmail;
-                                                    const emEl = document.getElementById('fb-auth-email');
-                                                    if (emEl) emEl.value = autoEmail;
+                                                    syncSecretFieldPlaceholders();
                                                     break;
                                                 }
                                             } catch (retryErr) {
@@ -2516,7 +2578,7 @@
                                 }
                                 if (nextOpts && typeof nextOpts === 'object') {
                                     customDropdowns = nextOpts;
-                                    const encD = await encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
+                                    const encD = await encryptLocalSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
                                     if (encD) {
                                         safeStorageSet('renocamp_dropdowns_enc', encD);
                                         safeStorageRemove('renocamp_dropdowns');
@@ -2526,20 +2588,19 @@
                             })();
                         }
                     } else if (docSnap.id === 'deleted_records') {
-                        if (Array.isArray(data.ids)) {
-                            data.ids.forEach(id => deletedIds.add(String(id)));
-                            saveLocalDeletedTombstones();
-                            transactions = transactions.filter(t => !deletedIds.has(String(t.id)));
-                            saveLocalTransactions();
-                            renderAllLists();
-                        }
-                        if (Array.isArray(data.photoIds)) {
-                            data.photoIds.forEach(pid => deletedPhotoIds.add(String(pid)));
-                            saveLocalDeletedTombstones();
-                            vaultPhotos = vaultPhotos.filter(p => !deletedPhotoIds.has(String(p.id)));
-                            saveLocalVaultPhotos();
-                            renderVaultPhotosGrid();
-                        }
+                        (async () => {
+                            const { txChanged, photoChanged } = await applyCloudDeletedRecordsDoc(data, activeSessionPin);
+                            if (txChanged) {
+                                transactions = transactions.filter(t => !deletedIds.has(String(t.id)));
+                                saveLocalTransactions();
+                                renderAllLists();
+                            }
+                            if (photoChanged) {
+                                vaultPhotos = vaultPhotos.filter(p => !deletedPhotoIds.has(String(p.id)));
+                                saveLocalVaultPhotos();
+                                renderVaultPhotosGrid();
+                            }
+                        })();
                     }
                 });
             }, () => {});
@@ -2588,9 +2649,7 @@
 
                 const delDoc = await fetchDocFresh(doc(db, "settings", "deleted_records"));
                 if (delDoc && delDoc.exists()) {
-                    const delData = delDoc.data();
-                    if (Array.isArray(delData.ids)) delData.ids.forEach(id => deletedIds.add(String(id)));
-                    if (Array.isArray(delData.photoIds)) delData.photoIds.forEach(pid => deletedPhotoIds.add(String(pid)));
+                    await applyCloudDeletedRecordsDoc(delDoc.data(), activeSessionPin);
                 }
 
                 const [snap1, snap2, pSnap1, pSnap2] = await Promise.all([
@@ -2796,6 +2855,12 @@
             }
             window.scrollTo({ top: 0, behavior: 'smooth' });
             renderAllLists();
+            if (tabName === 'vault') {
+                renderVaultPhotosGrid();
+            } else {
+                const vGrid = document.getElementById('vault-photos-grid');
+                if (vGrid) vGrid.innerHTML = '';
+            }
         };
 
         function formatDateWithWeekday(dateStr) {
@@ -3354,10 +3419,11 @@
                 if (db && _fbModules) {
                     try {
                         const { doc, deleteDoc, setDoc } = _fbModules;
+                        const encTombDoc = await buildEncryptedCloudTombstonesDoc(activeSessionPin);
                         await Promise.all([
                             deleteDoc(doc(db, "renocamp_transactions", strId)),
                             deleteDoc(doc(db, "transactions", strId)),
-                            setDoc(doc(db, "settings", "deleted_records"), { ids: Array.from(deletedIds), photoIds: Array.from(deletedPhotoIds), updatedAt: Date.now() })
+                            setDoc(doc(db, "settings", "deleted_records"), encTombDoc)
                         ]);
                         updateCloudStatusUI(true);
                     } catch (err) {
@@ -3653,6 +3719,11 @@
             const countEl = document.getElementById('vault-photos-count');
             if (countEl) countEl.textContent = `共 ${vaultPhotos.length} 張加密相片`;
             if (!grid || !isAppUnlocked) return;
+            // 🛡️ [中危 1 修復] 按需解密（Lazy Decryption）：若用戶並非處於「📸 夾萬實況」分頁，即刻清空隱藏 DOM，絕不喺背景預載明文 Base64 相片
+            if (activeTab !== 'vault') {
+                grid.innerHTML = '';
+                return;
+            }
 
             if (vaultPhotos.length === 0) {
                 grid.innerHTML = `<div class="col-span-full text-center py-10 text-slate-400 text-xs font-bold">暫無夾萬現況相片留底，撳右上角「📸 上傳加密相」即可記錄！</div>`;
@@ -3880,7 +3951,9 @@
                 const sampleTxCipherDoc = await buildEncryptedCloudTxDoc({ id: 'selftest', type: 'income', amount: 888, person: '測試' }, activeSessionPin);
                 const noDomSecretsExposed = !document.getElementById('gh-token')?.value
                     && !document.getElementById('fb-api-key')?.value
-                    && !document.getElementById('fb-auth-password')?.value;
+                    && !document.getElementById('fb-auth-email')?.value
+                    && !document.getElementById('fb-auth-password')?.value
+                    && (activeTab === 'vault' || !document.getElementById('vault-photos-grid')?.innerHTML);
                 cryptoSelfTestOk = sampleCipher.startsWith('ENC_V2P:')
                     && samplePlain === 'VAULT_SELFTEST_OK'
                     && sampleTxCipherDoc.encTxPayload.startsWith('ENC_V2:')
@@ -3919,10 +3992,11 @@
                 if (db && _fbModules) {
                     try {
                         const { doc, deleteDoc, setDoc } = _fbModules;
+                        const encTombDoc = await buildEncryptedCloudTombstonesDoc(activeSessionPin);
                         await Promise.all([
                             deleteDoc(doc(db, "renocamp_vault_photos", strId)),
                             deleteDoc(doc(db, "vault_photos", strId)),
-                            setDoc(doc(db, "settings", "deleted_records"), { ids: Array.from(deletedIds), photoIds: Array.from(deletedPhotoIds), updatedAt: Date.now() })
+                            setDoc(doc(db, "settings", "deleted_records"), encTombDoc)
                         ]);
                         updateCloudStatusUI(true);
                     } catch (err) {
@@ -4011,16 +4085,18 @@
             if (!val) return;
             if (!customDropdowns[currentDropdownTab].includes(val)) {
                 customDropdowns[currentDropdownTab].push(val);
-                const encD = await encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
-                if (encD) {
-                    safeStorageSet('renocamp_dropdowns_enc', encD);
+                const dropJson = JSON.stringify(customDropdowns);
+                const encLocalD = await encryptLocalSensitiveString(dropJson, activeSessionPin);
+                const encCloudD = await encryptSensitiveString(dropJson, activeSessionPin);
+                if (encLocalD) {
+                    safeStorageSet('renocamp_dropdowns_enc', encLocalD);
                     safeStorageRemove('renocamp_dropdowns');
                 }
                 input.value = '';
                 renderDropdownEditor();
-                if (db && encD) {
+                if (db && encCloudD) {
                     const { doc, setDoc } = _fbModules;
-                    await setDoc(doc(db, "settings", "dropdowns"), { encOptions: encD, encrypted: true, updatedAt: Date.now() });
+                    await setDoc(doc(db, "settings", "dropdowns"), { encOptions: encCloudD, encrypted: true, updatedAt: Date.now() });
                 }
             }
         };
@@ -4029,15 +4105,17 @@
             if (!isAppUnlocked) return;
             if (customDropdowns[tab].length <= 1) return showToast('⚠️ 最少要保留一個選項！');
             customDropdowns[tab].splice(idx, 1);
-            const encD = await encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
-            if (encD) {
-                safeStorageSet('renocamp_dropdowns_enc', encD);
+            const dropJson = JSON.stringify(customDropdowns);
+            const encLocalD = await encryptLocalSensitiveString(dropJson, activeSessionPin);
+            const encCloudD = await encryptSensitiveString(dropJson, activeSessionPin);
+            if (encLocalD) {
+                safeStorageSet('renocamp_dropdowns_enc', encLocalD);
                 safeStorageRemove('renocamp_dropdowns');
             }
             renderDropdownEditor();
-            if (db && encD) {
+            if (db && encCloudD) {
                 const { doc, setDoc } = _fbModules;
-                await setDoc(doc(db, "settings", "dropdowns"), { encOptions: encD, encrypted: true, updatedAt: Date.now() });
+                await setDoc(doc(db, "settings", "dropdowns"), { encOptions: encCloudD, encrypted: true, updatedAt: Date.now() });
             }
         };
 
@@ -4080,13 +4158,22 @@
         window.exportBackupJSON = async function() {
             if (!isAppUnlocked || !activeSessionPin) return;
             try {
+                const portableCloudAuthEnc = (sessionFbApiKey || (cloudAuthCreds && cloudAuthCreds.email))
+                    ? await encryptSensitiveString(JSON.stringify({
+                        projectId: safeStorageGet('renocamp_fb_project_id', 'my-renocamp-app'),
+                        apiKey: sessionFbApiKey || '',
+                        email: (cloudAuthCreds && cloudAuthCreds.email) || '',
+                        password: (cloudAuthCreds && cloudAuthCreds.password) || '',
+                        ownerUid: boundOwnerUid || ''
+                    }), activeSessionPin)
+                    : '';
                 const plainBundle = {
                     transactions,
                     vaultPhotos,
                     customDropdowns,
                     deletedIds: Array.from(deletedIds),
                     deletedPhotoIds: Array.from(deletedPhotoIds),
-                    cloudAuthEnc: safeStorageGet('renocamp_cloud_auth_enc', '')
+                    cloudAuthEnc: portableCloudAuthEnc
                 };
                 const encBackupPayload = await encryptSensitiveString(JSON.stringify(plainBundle), activeSessionPin);
                 if (!encBackupPayload || !encBackupPayload.startsWith('ENC_V2:')) {
@@ -4148,15 +4235,21 @@
                     }
                     if (data.customDropdowns && typeof data.customDropdowns === 'object') {
                         customDropdowns = data.customDropdowns;
-                        const encD = await encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
+                        const encD = await encryptLocalSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
                         if (encD) {
                             safeStorageSet('renocamp_dropdowns_enc', encD);
                             safeStorageRemove('renocamp_dropdowns');
                         }
                         renderDropdownEditor();
                     }
-                    if (data.cloudAuthEnc && String(data.cloudAuthEnc).startsWith('ENC_V2:')) {
-                        safeStorageSet('renocamp_cloud_auth_enc', data.cloudAuthEnc);
+                    if (data.cloudAuthEnc && String(data.cloudAuthEnc).startsWith('ENC_V')) {
+                        const decAuth = await decryptSensitiveString(data.cloudAuthEnc, activeSessionPin);
+                        if (decAuth) {
+                            const localAuthEnc = await encryptLocalSensitiveString(decAuth, activeSessionPin);
+                            if (localAuthEnc) safeStorageSet('renocamp_cloud_auth_enc', localAuthEnc);
+                        } else {
+                            safeStorageSet('renocamp_cloud_auth_enc', data.cloudAuthEnc);
+                        }
                         await restoreProtectedCredentialsAfterUnlock();
                         await connectCloudDatabase(false);
                     }
@@ -4200,8 +4293,10 @@
                     showToast('🗑️ 已永久清空本機及雲端收支記錄！');
                     if (db) {
                         try {
+                            await ensureCloudAuthenticated(false);
                             const { doc, deleteDoc, setDoc } = _fbModules;
-                            await setDoc(doc(db, "settings", "deleted_records"), { ids: Array.from(deletedIds), photoIds: Array.from(deletedPhotoIds), updatedAt: Date.now() });
+                            const encTombDoc = await buildEncryptedCloudTombstonesDoc(activeSessionPin);
+                            await setDoc(doc(db, "settings", "deleted_records"), encTombDoc);
                             for (const id of idsToDelete) {
                                 deleteDoc(doc(db, "renocamp_transactions", id)).catch(() => {});
                                 deleteDoc(doc(db, "transactions", id)).catch(() => {});
@@ -4330,9 +4425,10 @@
                 // 🛡️ [高危 1 修復] 雲端 branding (頭像/橫幅) 與 dropdowns (自訂項目/銀行選單) 全面升級為 ENC_V2 密文入庫
                 const encBrandingPayload = await encryptSensitiveString(JSON.stringify({ banner: savedBanner, avatar: savedAvatar }), activeSessionPin);
                 const encDropdownsPayload = await encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
+                const encTombDoc = await buildEncryptedCloudTombstonesDoc(activeSessionPin);
                 promises.push(setDoc(doc(db, "settings", "branding"), { encBranding: encBrandingPayload, encrypted: true, updatedAt: nowTs }));
                 promises.push(setDoc(doc(db, "settings", "dropdowns"), { encOptions: encDropdownsPayload, encrypted: true, updatedAt: nowTs }));
-                promises.push(setDoc(doc(db, "settings", "deleted_records"), { ids: Array.from(deletedIds), photoIds: Array.from(deletedPhotoIds), updatedAt: nowTs }));
+                promises.push(setDoc(doc(db, "settings", "deleted_records"), encTombDoc));
 
                 await withTimeout(Promise.all(promises), 20000);
                 updateCloudStatusUI(true);
@@ -4374,6 +4470,8 @@
                     safeStorageSet('renocamp_gh_token_enc', reEncTok);
                 }
 
+                _derivedKeyCache.clear();
+                _cipherDecryptCache.clear();
                 activeSessionPin = p;
                 userPinHash = await createPbkdf2PinVerifier(p);
                 safeStorageSet('renocamp_pin_hash', userPinHash);
@@ -4554,22 +4652,22 @@
                 const cloneCloudDot = cloneDoc.querySelector('#header-cloud-dot');
                 if (cloneCloudDot) cloneCloudDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
 
-                // 寫入網站頭像與 Edge「我的最愛」Favicon 圖示（優先採用已設定之頭像或官方師傅圓形圖示，確保 Edge 書籤列左邊 100% 顯示圖示）
+                // 🛡️ [M4 / 中危 2 修復] 推送公開 GitHub 時自動剝離私人自訂 Base64 橫幅與頭像（私人相片只留本機及 ENC_V2 加密雲端），公開 HTML 強制只寫入官方預設裝修師傅圓形圖示與工程背景，確保 Edge「我的最愛」100% 顯示圖示同時零私隱外洩！
                 const cloneBanner = cloneDoc.querySelector('#lock-screen-banner');
-                if (cloneBanner && savedBanner) cloneBanner.setAttribute('src', savedBanner);
-                const activeIconUri = savedAvatar || DEFAULT_AVATAR_ICON;
+                if (cloneBanner) cloneBanner.setAttribute('src', DEFAULT_BANNER);
+                const publicIconUri = DEFAULT_AVATAR_ICON;
                 const cloneAvatar1 = cloneDoc.querySelector('#lock-screen-avatar');
                 const cloneAvatar2 = cloneDoc.querySelector('#header-avatar');
                 const cloneIcon1 = cloneDoc.querySelector('#lock-screen-icon');
                 const cloneIcon2 = cloneDoc.querySelector('#header-avatar-icon');
-                if (activeIconUri) {
-                    if (cloneAvatar1) { cloneAvatar1.setAttribute('src', activeIconUri); cloneAvatar1.classList.remove('hidden'); }
-                    if (cloneAvatar2) { cloneAvatar2.setAttribute('src', activeIconUri); cloneAvatar2.classList.remove('hidden'); }
+                if (publicIconUri) {
+                    if (cloneAvatar1) { cloneAvatar1.setAttribute('src', publicIconUri); cloneAvatar1.classList.remove('hidden'); }
+                    if (cloneAvatar2) { cloneAvatar2.setAttribute('src', publicIconUri); cloneAvatar2.classList.remove('hidden'); }
                     if (cloneIcon1) cloneIcon1.classList.add('hidden');
                     if (cloneIcon2) cloneIcon2.classList.add('hidden');
                     ['dynamic-favicon', 'dynamic-shortcut-icon', 'dynamic-apple-icon'].forEach(fid => {
                         const cFav = cloneDoc.querySelector('#' + fid);
-                        if (cFav) cFav.setAttribute('href', activeIconUri);
+                        if (cFav) cFav.setAttribute('href', publicIconUri);
                     });
                 }
 
