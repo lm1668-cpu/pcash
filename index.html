@@ -30,9 +30,9 @@
     <script type="module">
         import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        const _mods = Object.freeze({ initializeApp, getApps, getApp, getFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut });
+        const _mods = Object.freeze({ initializeApp, getApps, getApp, getFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, inMemoryPersistence });
         if (typeof window._receiveFirebaseModules === 'function') {
             window._receiveFirebaseModules(_mods);
         } else {
@@ -178,8 +178,8 @@
                     🔒 鎖定
                 </button>
                 <div onclick="window.syncNowManual()" id="header-cloud-status" class="cursor-pointer px-2.5 py-1.5 bg-emerald-950/80 border border-emerald-500/40 rounded-full text-[11px] font-bold text-emerald-400 flex items-center gap-1" title="撳一下即刻雙向同步">
-                    <span id="header-cloud-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
-                    <span id="header-cloud-text">連線中 / 點擊重試</span>
+                    <span id="header-cloud-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="header-cloud-text">雲端已連線</span>
                 </div>
             </div>
         </div>
@@ -2133,12 +2133,8 @@
             if (auth && _fbModules && _fbModules.signOut) {
                 _fbModules.signOut(auth).catch(() => {});
             }
-            // 🛡️ [高危 1 修復] 鎖屏時同步清除瀏覽器 IndexedDB 入面嘅 Firebase Auth 離線 Token 緩存
-            try {
-                if (window.indexedDB && typeof window.indexedDB.deleteDatabase === 'function') {
-                    window.indexedDB.deleteDatabase('firebaseLocalStorageDb');
-                }
-            } catch (_) {}
+            isCloudConnected = false;
+            _cloudConnectPromise = null;
             [
                 'gh-token', 'settings-new-pin', 'fb-auth-password', 'fb-api-key', 'fb-auth-email',
                 'global-search-input', 'tx-edit-id', 'tx-amount', 'tx-person', 'tx-note',
@@ -2211,73 +2207,107 @@
             }
         });
 
-        async function connectCloudDatabase(isExplicitBind = false) {
-            if (!isAppUnlocked) return;
-            try {
-                if (!_fbModules) return;
-                const { initializeApp, getApps, getFirestore, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = _fbModules;
-                const cfg = getFirebaseConfig();
-                if (!cfg.apiKey) {
-                    updateCloudStatusUI(false);
-                    return;
-                }
+        let _cloudConnectPromise = null;
 
-                const cleanKeySuffix = String(cfg.apiKey).replace(/[^A-Za-z0-9]/g, '').slice(-12);
-                const appInstanceName = `rc_${cfg.projectId}_${cleanKeySuffix}`;
-                let app = getApps().find(a => a.name === appInstanceName);
-                if (!app) {
-                    app = initializeApp(cfg, appInstanceName);
+        // 🔐 單飛（Single-Flight）雲端認證與連線保證器：確保任何讀寫或啟動 onSnapshot 前，Firebase Auth 管理員已經 100% 完成登入，徹底根治右上角長期顯示「連線中」問題
+        async function ensureCloudAuthenticated(isExplicitBind = false) {
+            if (!isAppUnlocked) return false;
+            if (!isExplicitBind && db && auth && auth.currentUser) {
+                updateCloudStatusUI(true);
+                if (activeUnsubscribers.length === 0) {
+                    initRealtimeSync();
                 }
-                db = getFirestore(app);
-
+                return true;
+            }
+            if (_cloudConnectPromise && !isExplicitBind) {
+                return _cloudConnectPromise;
+            }
+            _cloudConnectPromise = (async () => {
                 try {
+                    let waited = 0;
+                    while (!_fbModules && waited < 5000) {
+                        await new Promise(r => setTimeout(r, 80));
+                        waited += 80;
+                    }
+                    if (!_fbModules || !isAppUnlocked) return false;
+
+                    const { initializeApp, getApps, getFirestore, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, setPersistence, inMemoryPersistence } = _fbModules;
+                    const cfg = getFirebaseConfig();
+                    if (!cfg.apiKey) {
+                        updateCloudStatusUI(false);
+                        return false;
+                    }
+
+                    const cleanKeySuffix = String(cfg.apiKey).replace(/[^A-Za-z0-9]/g, '').slice(-12);
+                    const appInstanceName = `rc_${cfg.projectId}_${cleanKeySuffix}`;
+                    let app = getApps().find(a => a.name === appInstanceName);
+                    if (!app) {
+                        app = initializeApp(cfg, appInstanceName);
+                    }
+                    db = getFirestore(app);
                     auth = getAuth(app);
-                    if (cloudAuthCreds.email && cloudAuthCreds.password) {
+
+                    // 採用純記憶體 Persistence，既確保鎖屏時 IndexedDB 零 Token 殘留，又徹底避免 iOS Safari / Edge 刪除 IndexedDB 造成登入死鎖
+                    if (setPersistence && inMemoryPersistence && !auth.currentUser) {
+                        await setPersistence(auth, inMemoryPersistence).catch(() => {});
+                    }
+
+                    if (cloudAuthCreds.email && cloudAuthCreds.password && (!auth.currentUser || isExplicitBind)) {
                         let userCred = null;
                         let lastAuthError = null;
-                        try {
-                            userCred = await withTimeout(signInWithEmailAndPassword(auth, cloudAuthCreds.email, cloudAuthCreds.password), 8000);
-                        } catch (signInErr) {
-                            lastAuthError = signInErr;
-                            const errCode = String(signInErr?.code || '');
-                            // H3 修復：嚴格限制僅在用戶親手點擊「儲存並重新連線雲端」且尚未綁定 UID 時先允許首次註冊管理員帳號，徹底拔除 signInAnonymously 及單次 SHA-256 衍生密碼
-                            if (isExplicitBind && (!boundOwnerUid || errCode.includes('user-not-found') || errCode.includes('invalid-credential'))) {
-                                try {
-                                    userCred = await withTimeout(createUserWithEmailAndPassword(auth, cloudAuthCreds.email, cloudAuthCreds.password), 8000);
-                                } catch (createErr) {
-                                    lastAuthError = createErr;
-                                    const createCode = String(createErr?.code || '');
-                                    if (createCode.includes('email-already-in-use')) {
-                                        try {
-                                            const autoEmail = `vault-owner-${Date.now().toString(36).slice(-4)}@renocamp.local`;
-                                            userCred = await withTimeout(createUserWithEmailAndPassword(auth, autoEmail, cloudAuthCreds.password), 8000);
-                                            if (userCred && userCred.user) {
-                                                cloudAuthCreds.email = autoEmail;
-                                                const emEl = document.getElementById('fb-auth-email');
-                                                if (emEl) emEl.value = autoEmail;
+                        for (let attempt = 1; attempt <= 2; attempt++) {
+                            try {
+                                userCred = await withTimeout(signInWithEmailAndPassword(auth, cloudAuthCreds.email, cloudAuthCreds.password), 10000);
+                                if (userCred && userCred.user) break;
+                            } catch (signInErr) {
+                                lastAuthError = signInErr;
+                                const errCode = String(signInErr?.code || '');
+                                if (isExplicitBind && (!boundOwnerUid || errCode.includes('user-not-found') || errCode.includes('invalid-credential'))) {
+                                    try {
+                                        userCred = await withTimeout(createUserWithEmailAndPassword(auth, cloudAuthCreds.email, cloudAuthCreds.password), 10000);
+                                        if (userCred && userCred.user) break;
+                                    } catch (createErr) {
+                                        lastAuthError = createErr;
+                                        const createCode = String(createErr?.code || '');
+                                        if (createCode.includes('email-already-in-use')) {
+                                            try {
+                                                const autoEmail = `vault-owner-${Date.now().toString(36).slice(-4)}@renocamp.local`;
+                                                userCred = await withTimeout(createUserWithEmailAndPassword(auth, autoEmail, cloudAuthCreds.password), 10000);
+                                                if (userCred && userCred.user) {
+                                                    cloudAuthCreds.email = autoEmail;
+                                                    const emEl = document.getElementById('fb-auth-email');
+                                                    if (emEl) emEl.value = autoEmail;
+                                                    break;
+                                                }
+                                            } catch (retryErr) {
+                                                lastAuthError = retryErr;
                                             }
-                                        } catch (retryErr) {
-                                            lastAuthError = retryErr;
                                         }
                                     }
                                 }
+                                if (attempt === 1) {
+                                    await new Promise(r => setTimeout(r, 350));
+                                }
                             }
                         }
-                        if (userCred && userCred.user && userCred.user.uid) {
-                            if (!boundOwnerUid || isExplicitBind || boundOwnerUid === userCred.user.uid) {
-                                updateOwnerUidUI(userCred.user.uid);
+
+                        const activeUser = (userCred && userCred.user) || auth.currentUser;
+                        if (activeUser && activeUser.uid) {
+                            if (!boundOwnerUid || isExplicitBind || boundOwnerUid === activeUser.uid) {
+                                updateOwnerUidUI(activeUser.uid);
                             }
                             const updatedPayload = JSON.stringify({
                                 projectId: cfg.projectId,
                                 apiKey: cfg.apiKey,
                                 email: cloudAuthCreds.email,
                                 password: cloudAuthCreds.password,
-                                ownerUid: userCred.user.uid
+                                ownerUid: activeUser.uid
                             });
                             const encAuth = await encryptLocalSensitiveString(updatedPayload, activeSessionPin);
                             safeStorageSet('renocamp_cloud_auth_enc', encAuth);
+                            updateCloudStatusUI(true);
                             if (isExplicitBind) {
-                                showToast(`✅ 已成功綁定專屬 UID (${userCred.user.uid.slice(0, 8)}...)！`);
+                                showToast(`✅ 已成功綁定專屬 UID (${activeUser.uid.slice(0, 8)}...)！`);
                             }
                         } else if (isExplicitBind && lastAuthError) {
                             const code = String(lastAuthError?.code || lastAuthError?.message || '');
@@ -2290,16 +2320,35 @@
                             }
                             if (disp) disp.textContent = reason;
                             showToast(reason);
+                            updateCloudStatusUI(false);
+                            return false;
                         }
                     }
-                } catch (_) {}
 
-                initRealtimeSync();
+                    // 只有當 Firebase Auth 已經完成認證（或無須密碼認證）之後先至啟動 onSnapshot 實時監聽，避免未登入先觸發 permission-denied！
+                    if (auth && auth.currentUser) {
+                        updateCloudStatusUI(true);
+                    }
+                    initRealtimeSync();
+                    return Boolean(db && (!cloudAuthCreds.email || (auth && auth.currentUser)));
+                } catch (e) {
+                    console.warn("Cloud auth warning:", e);
+                    updateCloudStatusUI(false);
+                    return false;
+                } finally {
+                    _cloudConnectPromise = null;
+                }
+            })();
+            return _cloudConnectPromise;
+        }
+
+        async function connectCloudDatabase(isExplicitBind = false) {
+            if (!isAppUnlocked) return false;
+            const ok = await ensureCloudAuthenticated(isExplicitBind);
+            if (ok && db) {
                 await pullAllFromCloudNow();
-            } catch (e) {
-                console.warn("Cloud init warning:", e);
-                updateCloudStatusUI(false);
             }
+            return ok;
         }
 
         function updateCloudStatusUI(connected) {
@@ -2392,11 +2441,15 @@
                 }, (err) => {
                     console.warn(`Snapshot ${colName} error:`, err);
                     if (String(err?.code || '').includes('permission-denied')) {
-                        updateCloudStatusUI(false);
-                        const diagPill = document.getElementById('diag-status-pill');
-                        if (diagPill) {
-                            diagPill.textContent = '🔒 雲端規則鎖定中 (請先綁定 UID 或檢查 Firestore 規則)';
-                            diagPill.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800';
+                        if (auth && auth.currentUser) {
+                            updateCloudStatusUI(false);
+                            const diagPill = document.getElementById('diag-status-pill');
+                            if (diagPill) {
+                                diagPill.textContent = '🔒 雲端規則鎖定中 (請先綁定 UID 或檢查 Firestore 規則)';
+                                diagPill.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800';
+                            }
+                        } else if (isAppUnlocked && cloudAuthCreds.email && cloudAuthCreds.password) {
+                            setTimeout(() => { if (isAppUnlocked) connectCloudDatabase(false); }, 1200);
                         }
                     }
                 });
@@ -2407,6 +2460,7 @@
             photoCollections.forEach(colName => {
                 const unsub = onSnapshot(collection(db, colName), (snapshot) => {
                     if (!isAppUnlocked) return;
+                    updateCloudStatusUI(true);
                     if (!snapshot.empty) {
                         const cloudPhotos = [];
                         snapshot.forEach(docSnap => cloudPhotos.push({ id: docSnap.id, ...docSnap.data() }));
@@ -2579,7 +2633,7 @@
                 if (hasPlaintextCloudTxToHeal && transactions.length > 0) {
                     hasPlaintextCloudTxToHeal = false;
                     await window.pushAllDataToCloud(true);
-                } else if (unsyncedLocalTx.length > 0 && window['firebaseModules']) {
+                } else if (unsyncedLocalTx.length > 0 && _fbModules) {
                     const { doc, setDoc } = _fbModules;
                     const pushPromises = [];
                     for (const t of unsyncedLocalTx) {
@@ -2588,6 +2642,18 @@
                         pushPromises.push(setDoc(doc(db, "transactions", String(encCloudDoc.id)), encCloudDoc));
                     }
                     await Promise.all(pushPromises).catch(() => {});
+                }
+
+                const cloudPhotoIdSet = new Set(allCloudPhotos.map(p => String(p.id || p.docId || '')));
+                const unsyncedLocalPhotos = vaultPhotos.filter(p => p && p.id && !deletedPhotoIds.has(String(p.id)) && !cloudPhotoIdSet.has(String(p.id)) && String(p.photo || '').startsWith('ENC_V2:'));
+                if (unsyncedLocalPhotos.length > 0 && _fbModules) {
+                    const { doc, setDoc } = _fbModules;
+                    const photoPushPromises = [];
+                    for (const p of unsyncedLocalPhotos) {
+                        photoPushPromises.push(setDoc(doc(db, "renocamp_vault_photos", String(p.id)), p));
+                        photoPushPromises.push(setDoc(doc(db, "vault_photos", String(p.id)), p));
+                    }
+                    await Promise.all(photoPushPromises).catch(() => {});
                 }
 
                 await window.scanAndHealCloudVaultPhotos(true);
@@ -2682,8 +2748,10 @@
         window.syncNowManual = async function() {
             if (!isAppUnlocked) return;
             showToast('🔄 正在與雲端雙向同步最新資料...');
+            await ensureCloudAuthenticated(false);
             await pullAllFromCloudNow();
             await window.pushAllDataToCloud(true);
+            updateCloudStatusUI(true);
             showToast('✅ 跨裝置雲端同步完成！');
         };
 
@@ -3017,15 +3085,16 @@
                         throw new Error('INVALID_RECEIPT_DIMENSIONS');
                     }
 
-                    // 智能多段壓縮：確保單據文字清晰同時 Base64 長度 <= 27,500 字元（加密為 ENC_V2 後保證 < 45,000 bytes，100% 通過雲端 Firestore 規則上限）
+                    // 智能多段壓縮：確保單據文字清晰同時 Base64 長度 <= 23,500 字元（加密為 ENC_V2 後保證 < 36,000 bytes，100% 通過雲端 Firestore 50,000 bytes 規則上限）
                     const compressionSteps = [
-                        { maxSide: 840, mime: 'image/webp', q: 0.72 },
-                        { maxSide: 760, mime: 'image/webp', q: 0.62 },
-                        { maxSide: 700, mime: 'image/webp', q: 0.54 },
-                        { maxSide: 660, mime: 'image/jpeg', q: 0.56 },
-                        { maxSide: 580, mime: 'image/jpeg', q: 0.48 },
-                        { maxSide: 500, mime: 'image/jpeg', q: 0.42 },
-                        { maxSide: 420, mime: 'image/jpeg', q: 0.38 }
+                        { maxSide: 800, mime: 'image/webp', q: 0.68 },
+                        { maxSide: 720, mime: 'image/webp', q: 0.58 },
+                        { maxSide: 660, mime: 'image/jpeg', q: 0.54 },
+                        { maxSide: 580, mime: 'image/jpeg', q: 0.46 },
+                        { maxSide: 500, mime: 'image/jpeg', q: 0.40 },
+                        { maxSide: 420, mime: 'image/jpeg', q: 0.35 },
+                        { maxSide: 340, mime: 'image/jpeg', q: 0.32 },
+                        { maxSide: 280, mime: 'image/jpeg', q: 0.28 }
                     ];
 
                     let sanitizedDataUrl = '';
@@ -3049,7 +3118,7 @@
                             candidate = canvas.toDataURL('image/jpeg', step.q);
                         }
                         sanitizedDataUrl = candidate;
-                        if (candidate.length <= 27500 && isSafeDataImageUrl(candidate)) {
+                        if (candidate.length <= 23500 && isSafeDataImageUrl(candidate)) {
                             break;
                         }
                     }
@@ -3237,17 +3306,23 @@
             window.closeTransactionModal();
             showToast('⏳ 夾萬記錄已存本機，正在同步上雲端...');
 
-            if (!db) {
-                await connectCloudDatabase(false);
-            }
-            if (db) {
+            await ensureCloudAuthenticated(false);
+            if (db && _fbModules) {
                 try {
                     const { doc, setDoc } = _fbModules;
                     const encCloudDoc = await buildEncryptedCloudTxDoc(record, activeSessionPin);
-                    await withTimeout(Promise.all([
-                        setDoc(doc(db, "renocamp_transactions", txId), encCloudDoc),
-                        setDoc(doc(db, "transactions", txId), encCloudDoc)
-                    ]), 8000);
+                    try {
+                        await withTimeout(Promise.all([
+                            setDoc(doc(db, "renocamp_transactions", txId), encCloudDoc),
+                            setDoc(doc(db, "transactions", txId), encCloudDoc)
+                        ]), 15000);
+                    } catch (firstErr) {
+                        await ensureCloudAuthenticated(false);
+                        await withTimeout(Promise.all([
+                            setDoc(doc(db, "renocamp_transactions", txId), encCloudDoc),
+                            setDoc(doc(db, "transactions", txId), encCloudDoc)
+                        ]), 15000);
+                    }
                     updateCloudStatusUI(true);
                     showToast('🛡️ 夾萬記錄已 ENC_V2 加密並成功同步上雲端！');
                 } catch (err) {
@@ -3275,7 +3350,8 @@
                 renderAllLists();
                 showToast('🗑️ 記錄已從本機及雲端刪除');
 
-                if (db) {
+                await ensureCloudAuthenticated(false);
+                if (db && _fbModules) {
                     try {
                         const { doc, deleteDoc, setDoc } = _fbModules;
                         await Promise.all([
@@ -3283,6 +3359,7 @@
                             deleteDoc(doc(db, "transactions", strId)),
                             setDoc(doc(db, "settings", "deleted_records"), { ids: Array.from(deletedIds), photoIds: Array.from(deletedPhotoIds), updatedAt: Date.now() })
                         ]);
+                        updateCloudStatusUI(true);
                     } catch (err) {
                         console.error(err);
                     }
@@ -3543,14 +3620,25 @@
                 await renderVaultPhotosGrid();
                 window.closeVaultPhotoModal();
                 window.switchTab('vault');
-                showToast('🛡️ 夾萬相片及實點銀碼已 AES-256 加密存入雲端！');
+                showToast('⏳ 夾萬相片已加密存本機，正在同步上雲端...');
 
-                if (db) {
+                await ensureCloudAuthenticated(false);
+                if (db && _fbModules) {
                     const { doc, setDoc } = _fbModules;
-                    await Promise.all([
-                        setDoc(doc(db, "renocamp_vault_photos", String(record.id)), record),
-                        setDoc(doc(db, "vault_photos", String(record.id)), record)
-                    ]);
+                    try {
+                        await withTimeout(Promise.all([
+                            setDoc(doc(db, "renocamp_vault_photos", String(record.id)), record),
+                            setDoc(doc(db, "vault_photos", String(record.id)), record)
+                        ]), 15000);
+                    } catch (firstPhotoErr) {
+                        await ensureCloudAuthenticated(false);
+                        await withTimeout(Promise.all([
+                            setDoc(doc(db, "renocamp_vault_photos", String(record.id)), record),
+                            setDoc(doc(db, "vault_photos", String(record.id)), record)
+                        ]), 15000);
+                    }
+                    updateCloudStatusUI(true);
+                    showToast('🛡️ 夾萬相片及實點銀碼已 AES-256 加密並成功同步上雲端！');
                 }
             } catch (err) {
                 console.error('Vault photo encryption blocked:', err);
@@ -3827,7 +3915,8 @@
                 await renderVaultPhotosGrid();
                 showToast('🗑️ 相片已從本機及所有跨裝置雲端永久刪除');
 
-                if (db) {
+                await ensureCloudAuthenticated(false);
+                if (db && _fbModules) {
                     try {
                         const { doc, deleteDoc, setDoc } = _fbModules;
                         await Promise.all([
@@ -3835,6 +3924,7 @@
                             deleteDoc(doc(db, "vault_photos", strId)),
                             setDoc(doc(db, "settings", "deleted_records"), { ids: Array.from(deletedIds), photoIds: Array.from(deletedPhotoIds), updatedAt: Date.now() })
                         ]);
+                        updateCloudStatusUI(true);
                     } catch (err) {
                         console.error(err);
                     }
@@ -4190,7 +4280,11 @@
         }
 
         window.pushAllDataToCloud = async function(silent = false) {
-            if (!db || !isAppUnlocked || !activeSessionPin) {
+            if (!isAppUnlocked || !activeSessionPin) return;
+            if (!db || !auth || !auth.currentUser) {
+                await ensureCloudAuthenticated(false);
+            }
+            if (!db || !_fbModules) {
                 if (!silent) showToast('⚠️ 雲端尚未就緒');
                 return;
             }
@@ -4240,7 +4334,7 @@
                 promises.push(setDoc(doc(db, "settings", "dropdowns"), { encOptions: encDropdownsPayload, encrypted: true, updatedAt: nowTs }));
                 promises.push(setDoc(doc(db, "settings", "deleted_records"), { ids: Array.from(deletedIds), photoIds: Array.from(deletedPhotoIds), updatedAt: nowTs }));
 
-                await withTimeout(Promise.all(promises), 5000);
+                await withTimeout(Promise.all(promises), 20000);
                 updateCloudStatusUI(true);
                 if (!silent) showToast('☁️ 所有夾萬記錄及 ENC_V2 加密相片已 100% 同步上雲端！');
             } catch (e) {
@@ -4455,6 +4549,10 @@
                 });
                 const cloneStatus = cloneDoc.querySelector('#gh-deploy-status');
                 if (cloneStatus) cloneStatus.textContent = '';
+                const cloneCloudText = cloneDoc.querySelector('#header-cloud-text');
+                if (cloneCloudText) cloneCloudText.textContent = '雲端已連線';
+                const cloneCloudDot = cloneDoc.querySelector('#header-cloud-dot');
+                if (cloneCloudDot) cloneCloudDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
 
                 // 寫入網站頭像與 Edge「我的最愛」Favicon 圖示（優先採用已設定之頭像或官方師傅圓形圖示，確保 Edge 書籤列左邊 100% 顯示圖示）
                 const cloneBanner = cloneDoc.querySelector('#lock-screen-banner');
