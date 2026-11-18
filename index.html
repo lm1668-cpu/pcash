@@ -983,8 +983,8 @@
                 hiddenTimestamp = Date.now();
             } else if (hiddenTimestamp > 0 && (Date.now() - hiddenTimestamp > 60000)) {
                 window.lockApp();
-            } else if (isAppUnlocked && db) {
-                pullAllFromCloudNow();
+            } else if (isAppUnlocked) {
+                connectCloudDatabase(false);
             }
         });
         window.addEventListener('online', () => {
@@ -2198,6 +2198,8 @@
             }
             isCloudConnected = false;
             _cloudConnectPromise = null;
+            _cloudRetryCount = 0;
+            if (_cloudRetryTimer) { clearTimeout(_cloudRetryTimer); _cloudRetryTimer = null; }
             [
                 'gh-token', 'settings-new-pin', 'fb-auth-password', 'fb-api-key', 'fb-auth-email',
                 'global-search-input', 'tx-edit-id', 'tx-amount', 'tx-person', 'tx-note',
@@ -2716,9 +2718,13 @@
                 }
 
                 await window.scanAndHealCloudVaultPhotos(true);
+                _cloudRetryCount = 0;
                 updateCloudStatusUI(true);
+                return true;
             } catch (e) {
                 console.warn("Pull cloud error:", e);
+                updateCloudStatusUI(false);
+                return false;
             }
         }
 
@@ -2804,14 +2810,57 @@
             }
         };
 
+        let _cloudRetryTimer = null;
+        let _cloudRetryCount = 0;
+        function scheduleCloudAutoRetry() {
+            if (!isAppUnlocked || _cloudRetryTimer || _cloudRetryCount >= 3) return;
+            const delayMs = _cloudRetryCount === 0 ? 3000 : (_cloudRetryCount === 1 ? 8000 : 15000);
+            _cloudRetryCount++;
+            _cloudRetryTimer = setTimeout(async () => {
+                _cloudRetryTimer = null;
+                if (!isAppUnlocked) return;
+                const authOk = await ensureCloudAuthenticated(false);
+                if (authOk) {
+                    const pushOk = await window.pushAllDataToCloud(true);
+                    if (pushOk) {
+                        _cloudRetryCount = 0;
+                        updateCloudStatusUI(true);
+                    } else {
+                        scheduleCloudAutoRetry();
+                    }
+                } else {
+                    scheduleCloudAutoRetry();
+                }
+            }, delayMs);
+        }
+
         window.syncNowManual = async function() {
             if (!isAppUnlocked) return;
+            _cloudRetryCount = 0;
+            if (_cloudRetryTimer) { clearTimeout(_cloudRetryTimer); _cloudRetryTimer = null; }
             showToast('🔄 正在與雲端雙向同步最新資料...');
-            await ensureCloudAuthenticated(false);
-            await pullAllFromCloudNow();
-            await window.pushAllDataToCloud(true);
-            updateCloudStatusUI(true);
-            showToast('✅ 跨裝置雲端同步完成！');
+            const authOk = await ensureCloudAuthenticated(false);
+            if (!authOk) {
+                updateCloudStatusUI(false);
+                const cfg = getFirebaseConfig();
+                if (!cfg.apiKey) {
+                    showToast('⚠️ 尚未設定 Firebase API Key！請去「⚙️ 設定」填妥方案 A 憑證');
+                } else if (!cloudAuthCreds.email || !cloudAuthCreds.password) {
+                    showToast('⚠️ 尚未綁定管理員電郵與密碼！請去「⚙️ 設定」完成方案 A 綁定');
+                } else {
+                    showToast('❌ 雲端管理員驗證失敗，請去「⚙️ 設定」檢查 API Key 或密碼');
+                }
+                return;
+            }
+            const pullOk = await pullAllFromCloudNow();
+            const pushOk = await window.pushAllDataToCloud(true);
+            if (pullOk && pushOk) {
+                updateCloudStatusUI(true);
+                showToast('✅ 跨裝置雲端同步完成！');
+            } else {
+                updateCloudStatusUI(false);
+                showToast('⚠️ 雲端同步未完成（請檢查網絡或 Firestore Rules 是否匹配目前 UID）');
+            }
         };
 
         function saveLocalTransactions() {
@@ -3388,15 +3437,19 @@
                             setDoc(doc(db, "transactions", txId), encCloudDoc)
                         ]), 15000);
                     }
+                    _cloudRetryCount = 0;
                     updateCloudStatusUI(true);
                     showToast('🛡️ 夾萬記錄已 ENC_V2 加密並成功同步上雲端！');
                 } catch (err) {
                     console.warn('Cloud write error:', err);
                     updateCloudStatusUI(false);
-                    showToast('⚠️ 本機已儲存，但雲端上傳未完成！請撳右上角「雲端連線」重試同步');
+                    scheduleCloudAutoRetry();
+                    showToast('⚠️ 本機已儲存，雲端正在背景自動重試同步...');
                 }
             } else {
-                showToast('⚠️ 本機已儲存（目前未連上雲端，連網後將自動補推）');
+                updateCloudStatusUI(false);
+                scheduleCloudAutoRetry();
+                showToast('⚠️ 本機已儲存（目前未連上雲端，系統將自動重連補推）');
             }
             } finally {
                 isSavingTx = false;
@@ -3703,8 +3756,13 @@
                             setDoc(doc(db, "vault_photos", String(record.id)), record)
                         ]), 15000);
                     }
+                    _cloudRetryCount = 0;
                     updateCloudStatusUI(true);
                     showToast('🛡️ 夾萬相片及實點銀碼已 AES-256 加密並成功同步上雲端！');
+                } else {
+                    updateCloudStatusUI(false);
+                    scheduleCloudAutoRetry();
+                    showToast('⚠️ 相片已加密存本機，系統正在背景自動重連上雲端...');
                 }
             } catch (err) {
                 console.error('Vault photo encryption blocked:', err);
@@ -4380,8 +4438,9 @@
                 await ensureCloudAuthenticated(false);
             }
             if (!db || !_fbModules) {
+                updateCloudStatusUI(false);
                 if (!silent) showToast('⚠️ 雲端尚未就緒');
-                return;
+                return false;
             }
             try {
                 const { doc, setDoc } = _fbModules;
@@ -4431,11 +4490,15 @@
                 promises.push(setDoc(doc(db, "settings", "deleted_records"), encTombDoc));
 
                 await withTimeout(Promise.all(promises), 20000);
+                _cloudRetryCount = 0;
                 updateCloudStatusUI(true);
                 if (!silent) showToast('☁️ 所有夾萬記錄及 ENC_V2 加密相片已 100% 同步上雲端！');
+                return true;
             } catch (e) {
                 console.error(e);
+                updateCloudStatusUI(false);
                 if (!silent) showToast('⚠️ 推送雲端時遇到阻滯，請檢查網絡或規則');
+                return false;
             }
         };
 
