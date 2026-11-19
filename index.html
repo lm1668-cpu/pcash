@@ -506,6 +506,20 @@
                             </button>
                         </div>
                         <div id="fb-owner-uid-display" class="text-[11px] font-mono text-emerald-300 bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">目前綁定 Owner UID：尚未登入（請填妥上方 API Key、電郵及密碼後撳綁定）</div>
+
+                        <!-- 📱 跨裝置加密配對專區（手機一鍵導出 PAIR_V2 密文碼 -> 電腦/iPad 貼上即自動登入同一個 UID 同步全部資料） -->
+                        <div class="mt-2 pt-2.5 border-t border-slate-700/80 space-y-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[11px] font-black text-amber-300">📱 新電腦 / iPad 免手打一鍵配對（加密轉移 API Key + 管理員帳號）：</span>
+                            </div>
+                            <button type="button" onclick="window.copyDevicePairingCode()" class="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-xs rounded-xl shadow-xs transition">
+                                📤 在已連線嘅手機撳呢度：複製跨裝置加密配對碼
+                            </button>
+                            <div class="flex gap-1.5">
+                                <input type="password" id="device-pair-code-input" autocomplete="off" placeholder="在新電腦 / iPad 貼上 PAIR_V2:... 配對碼" class="flex-1 px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
+                                <button type="button" onclick="window.applyDevicePairingCode()" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shrink-0">📥 一鍵匯入連線</button>
+                            </div>
+                        </div>
                     </div>
                 </details>
 
@@ -2237,7 +2251,7 @@
             _cloudRetryCount = 0;
             if (_cloudRetryTimer) { clearTimeout(_cloudRetryTimer); _cloudRetryTimer = null; }
             [
-                'gh-token', 'settings-new-pin', 'fb-auth-password', 'fb-api-key', 'fb-auth-email',
+                'gh-token', 'settings-new-pin', 'fb-auth-password', 'fb-api-key', 'fb-auth-email', 'device-pair-code-input',
                 'global-search-input', 'tx-edit-id', 'tx-amount', 'tx-person', 'tx-note',
                 'vault-photo-amount', 'vault-photo-note', 'cnt-bundle-100k', 'cnt-note-1000',
                 'cnt-note-500', 'cnt-note-100', 'new-dropdown-item-input'
@@ -2298,8 +2312,114 @@
             });
             const encAuth = await encryptLocalSensitiveString(payload, activeSessionPin);
             safeStorageSet('renocamp_cloud_auth_enc', encAuth);
-            showToast('🔐 正在以專屬管理員憑證登入 Firebase Auth...');
+            if (!cloudAuthCreds.email || !cloudAuthCreds.password) {
+                showToast('⚠️ 提醒：如已開啟 UID 鎖庫規則，必須同時填入管理員電郵與密碼（或用下方「配對碼」一鍵匯入），否則無法讀取雲端資料！');
+            } else {
+                showToast('🔐 正在以專屬管理員憑證登入 Firebase Auth...');
+            }
             await connectCloudDatabase(true);
+        };
+
+        // 📱 跨裝置安全配對：將本機憑證以 PIN 加密為可跨機解密嘅 PAIR_V2 密文碼（60秒後自動清空剪貼簿）
+        window.copyDevicePairingCode = async function() {
+            if (!isAppUnlocked || !activeSessionPin) return;
+            const cfg = getFirebaseConfig();
+            if (!cfg.apiKey || !cloudAuthCreds.email || !cloudAuthCreds.password) {
+                showToast('⚠️ 此裝置尚未完成 Firebase API Key 及管理員電郵/密碼綁定，請先在已連線嘅手機複製配對碼！');
+                return;
+            }
+            try {
+                const bundle = JSON.stringify({
+                    projectId: cfg.projectId || 'my-renocamp-app',
+                    apiKey: cfg.apiKey,
+                    email: cloudAuthCreds.email,
+                    password: cloudAuthCreds.password,
+                    ownerUid: boundOwnerUid || '',
+                    ghOwner: safeStorageGet('renocamp_gh_owner', 'lm1668-cpu'),
+                    ghRepo: safeStorageGet('renocamp_gh_repo', 'pcash'),
+                    ghToken: sessionGhToken || ''
+                });
+                const enc = await encryptSensitiveString(bundle, activeSessionPin);
+                if (!enc || !enc.startsWith('ENC_V2:')) throw new Error('PAIR_ENCRYPT_FAILED');
+                const pairCode = 'PAIR_V2:' + enc;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(pairCode);
+                    showToast('✅ 已複製跨裝置加密配對碼！貼去新電腦即可一鍵連線（剪貼簿 60 秒後自動清空）');
+                    setTimeout(() => { try { navigator.clipboard.writeText('').catch(() => {}); } catch (_) {} }, 60000);
+                } else {
+                    fallbackCopyRules(pairCode);
+                    showToast('✅ 已複製跨裝置加密配對碼！請貼去新電腦匯入');
+                }
+            } catch (err) {
+                showToast('⚠️ 產生配對碼失敗，請重試！');
+            }
+        };
+
+        window.applyDevicePairingCode = async function() {
+            if (!isAppUnlocked || !activeSessionPin) return;
+            const inputEl = document.getElementById('device-pair-code-input');
+            const rawCode = (inputEl ? inputEl.value : '').trim();
+            if (inputEl) { inputEl.value = ''; inputEl.removeAttribute('value'); }
+            if (!rawCode || !rawCode.startsWith('PAIR_V2:ENC_V2:')) {
+                showToast('⚠️ 配對碼格式不正確！請在已連線嘅手機撳「複製跨裝置加密配對碼」後完整貼上。');
+                return;
+            }
+            try {
+                const encPayload = rawCode.slice('PAIR_V2:'.length);
+                const decJson = await decryptSensitiveString(encPayload, activeSessionPin);
+                if (!decJson) {
+                    showToast('🚨 無法解密配對碼！請確認這部電腦嘅登入 PIN 碼與手機完全相同。');
+                    return;
+                }
+                const parsed = JSON.parse(decJson);
+                if (!parsed.apiKey || !parsed.email || !parsed.password) {
+                    showToast('⚠️ 配對碼內容不完整，請在手機重新複製！');
+                    return;
+                }
+                const proj = String(parsed.projectId || 'my-renocamp-app').trim();
+                safeStorageSet('renocamp_fb_project_id', proj);
+                const projEl = document.getElementById('fb-project-id');
+                if (projEl) projEl.value = proj;
+                sessionFbApiKey = String(parsed.apiKey).trim();
+                cloudAuthCreds = {
+                    email: String(parsed.email).trim(),
+                    password: String(parsed.password).trim()
+                };
+                if (parsed.ownerUid) updateOwnerUidUI(String(parsed.ownerUid).trim());
+                const localAuthEnc = await encryptLocalSensitiveString(JSON.stringify({
+                    projectId: proj,
+                    apiKey: sessionFbApiKey,
+                    email: cloudAuthCreds.email,
+                    password: cloudAuthCreds.password,
+                    ownerUid: boundOwnerUid || ''
+                }), activeSessionPin);
+                if (localAuthEnc) safeStorageSet('renocamp_cloud_auth_enc', localAuthEnc);
+
+                if (parsed.ghOwner) {
+                    safeStorageSet('renocamp_gh_owner', String(parsed.ghOwner).trim());
+                    const oEl = document.getElementById('gh-owner');
+                    if (oEl) oEl.value = String(parsed.ghOwner).trim();
+                }
+                if (parsed.ghRepo) {
+                    safeStorageSet('renocamp_gh_repo', String(parsed.ghRepo).trim());
+                    const rEl = document.getElementById('gh-repo');
+                    if (rEl) rEl.value = String(parsed.ghRepo).trim();
+                }
+                if (parsed.ghToken) {
+                    sessionGhToken = String(parsed.ghToken).trim();
+                    const encGh = await encryptLocalSensitiveString(sessionGhToken, activeSessionPin);
+                    if (encGh) safeStorageSet('renocamp_gh_token_enc', encGh);
+                }
+
+                syncSecretFieldPlaceholders();
+                showToast('🔐 配對碼解密成功！正在登入雲端並同步全部資料...');
+                const ok = await connectCloudDatabase(false);
+                if (ok) {
+                    window.switchTab('home');
+                }
+            } catch (err) {
+                showToast('⚠️ 匯入配對碼時發生錯誤，請確認複製完整並重試！');
+            }
         };
 
         window.addEventListener('firebase-ready', () => {
@@ -2425,12 +2545,21 @@
                         }
                     }
 
-                    // 只有當 Firebase Auth 已經完成認證（或無須密碼認證）之後先至啟動 onSnapshot 實時監聽，避免未登入先觸發 permission-denied！
+                    // 只有當 Firebase Auth 已經完成認證先至亮綠燈並啟動監聽，避免新電腦只入 API Key 未入帳號密碼時誤報「雲端已連線」
                     if (auth && auth.currentUser) {
                         updateCloudStatusUI(true);
+                        initRealtimeSync();
+                        return true;
                     }
-                    initRealtimeSync();
-                    return Boolean(db && (!cloudAuthCreds.email || (auth && auth.currentUser)));
+                    updateCloudStatusUI(false);
+                    if (!cloudAuthCreds.email || !cloudAuthCreds.password) {
+                        const diagPill = document.getElementById('diag-status-pill');
+                        if (diagPill) {
+                            diagPill.textContent = '🔑 請填入管理員電郵/密碼或匯入配對碼';
+                            diagPill.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-800';
+                        }
+                    }
+                    return false;
                 } catch (e) {
                     console.warn("Cloud auth warning:", e);
                     updateCloudStatusUI(false);
@@ -2493,6 +2622,8 @@
                 }
             });
 
+            let encTotalCount = 0;
+            let encFailCount = 0;
             for (const rawDoc of cloudDocs) {
                 const id = String(rawDoc.id || rawDoc.docId);
                 if (!id) continue;
@@ -2503,16 +2634,24 @@
                 }
                 if (deletedIds.has(id)) continue;
 
+                const isEncDoc = Boolean(rawDoc.encTxPayload && String(rawDoc.encTxPayload).startsWith('ENC_V'));
+                if (isEncDoc) encTotalCount++;
                 if (!rawDoc.encTxPayload || !String(rawDoc.encTxPayload).startsWith('ENC_V2:')) {
                     hasPlaintextCloudTxToHeal = true;
                 }
 
                 const incoming = await decryptCloudTransactionDoc(rawDoc);
-                if (!incoming) continue;
+                if (!incoming) {
+                    if (isEncDoc) encFailCount++;
+                    continue;
+                }
                 const existing = mergedMap.get(id);
                 if (!existing || (Number(incoming.updatedAt || 0) >= Number(existing.updatedAt || 0))) {
                     mergedMap.set(id, incoming);
                 }
+            }
+            if (encTotalCount > 0 && encFailCount === encTotalCount) {
+                showToast(`🚨 雲端已有 ${encTotalCount} 筆加密資料，但目前登入 PIN 無法解密！請確認電腦與手機使用相同 PIN 碼！`);
             }
 
             transactions = Array.from(mergedMap.values());
@@ -2682,8 +2821,13 @@
             if (!db || !isAppUnlocked) return;
             try {
                 const { collection, getDocs, getDocsFromServer, doc, getDoc, getDocFromServer } = _fbModules;
-                const fetchDocFresh = (ref) => (getDocFromServer ? getDocFromServer(ref).catch(() => getDoc(ref)) : getDoc(ref)).catch(() => null);
-                const fetchColFresh = (ref) => (getDocsFromServer ? getDocsFromServer(ref).catch(() => getDocs(ref)) : getDocs(ref)).catch(() => null);
+                let permDeniedHit = false;
+                const onFetchErr = (err) => {
+                    if (String(err?.code || '').includes('permission-denied')) permDeniedHit = true;
+                    return null;
+                };
+                const fetchDocFresh = (ref) => (getDocFromServer ? getDocFromServer(ref).catch(() => getDoc(ref)) : getDoc(ref)).catch(onFetchErr);
+                const fetchColFresh = (ref) => (getDocsFromServer ? getDocsFromServer(ref).catch(() => getDocs(ref)) : getDocs(ref)).catch(onFetchErr);
 
                 const delDoc = await fetchDocFresh(doc(db, "settings", "deleted_records"));
                 if (delDoc && delDoc.exists()) {
@@ -2696,6 +2840,17 @@
                     fetchColFresh(collection(db, "renocamp_vault_photos")),
                     fetchColFresh(collection(db, "vault_photos"))
                 ]);
+
+                if (permDeniedHit && !snap1 && !snap2) {
+                    updateCloudStatusUI(false);
+                    const diagPill = document.getElementById('diag-status-pill');
+                    if (diagPill) {
+                        diagPill.textContent = '🔒 雲端權限不足（請用手機配對碼匯入同一個 UID）';
+                        diagPill.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800';
+                    }
+                    showToast('🔒 雲端拒絕讀取：請喺手機「⚙️ 設定」複製加密配對碼並貼到呢部機匯入！');
+                    return false;
+                }
 
                 const allCloudTx = [];
                 if (snap1) snap1.forEach(d => allCloudTx.push({ docId: d.id, ...d.data() }));
@@ -4703,7 +4858,7 @@
                 cloneDoc.removeAttribute('data-cloud-auth-enc');
                 document.documentElement.removeAttribute('data-cloud-auth-enc');
                 [
-                    'pin-input', 'gh-token', 'fb-api-key', 'fb-auth-email', 'fb-auth-password',
+                    'pin-input', 'gh-token', 'fb-api-key', 'fb-auth-email', 'fb-auth-password', 'device-pair-code-input',
                     'settings-new-pin', 'global-search-input', 'tx-edit-id', 'tx-amount', 'tx-person',
                     'tx-note', 'vault-photo-amount', 'vault-photo-note', 'cnt-bundle-100k',
                     'cnt-note-1000', 'cnt-note-500', 'cnt-note-100', 'new-dropdown-item-input'
