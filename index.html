@@ -29,10 +29,10 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, initializeFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        const _mods = Object.freeze({ initializeApp, getApps, getApp, getFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, inMemoryPersistence });
+        const _mods = Object.freeze({ initializeApp, getApps, getApp, getFirestore, initializeFirestore, collection, doc, setDoc, getDoc, getDocs, getDocFromServer, getDocsFromServer, deleteDoc, onSnapshot, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, inMemoryPersistence });
         if (typeof window._receiveFirebaseModules === 'function') {
             window._receiveFirebaseModules(_mods);
         } else {
@@ -55,8 +55,9 @@
         body.app-locked > footer,
         body.app-locked > div:not(#auth-lock-screen):not(#app-toast) { display: none !important; }
         #auth-lock-screen { position: fixed; inset: 0; z-index: 50; background-color: #eef2f6; }
-        /* 📱 iPhone / iOS 防止點擊輸入框自動放大頁面（iOS WebKit 要求 input/select/textarea 字體 >= 16px 先唔會強制縮放） */
-        html, body { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
+        /* 📱 iPhone / iOS 防止點擊輸入框自動放大頁面，同時強制 min-width: 0 杜絕輸入框撐爆卡片令按鈕走位 */
+        html, body { -webkit-text-size-adjust: 100%; touch-action: manipulation; overflow-x: hidden; max-width: 100vw; }
+        input, select, textarea { min-width: 0; max-width: 100%; box-sizing: border-box; }
         @media screen and (max-width: 768px) {
             input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
             select,
@@ -65,7 +66,7 @@
             }
             input::placeholder,
             textarea::placeholder {
-                font-size: 13px;
+                font-size: 12px;
             }
         }
     </style>
@@ -494,9 +495,9 @@
                             </div>
                             <div>
                                 <label class="block text-[10px] font-bold text-slate-400 mb-0.5">專屬雲端高強度密碼 (最少 12 位)：</label>
-                                <div class="flex gap-1.5">
-                                    <input type="password" id="fb-auth-password" autocomplete="new-password" placeholder="撳右邊掣自動生成 24 位亂碼" class="flex-1 px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
-                                    <button type="button" onclick="window.generateRandomCloudPassword()" class="px-2.5 py-2 bg-slate-700 hover:bg-slate-600 text-amber-300 font-black text-[11px] rounded-xl shrink-0">🎲 生成</button>
+                                <div class="flex items-center gap-1.5 min-w-0">
+                                    <input type="password" id="fb-auth-password" autocomplete="new-password" placeholder="撳右邊掣自動生成 24 位亂碼" class="flex-1 min-w-0 w-full px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
+                                    <button type="button" onclick="window.generateRandomCloudPassword()" class="px-2.5 py-2 bg-slate-700 hover:bg-slate-600 text-amber-300 font-black text-[11px] rounded-xl whitespace-nowrap shrink-0">🎲 生成</button>
                                 </div>
                             </div>
                         </div>
@@ -515,12 +516,10 @@
                             <button type="button" onclick="window.copyDevicePairingCode()" class="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-xs rounded-xl shadow-xs transition">
                                 📤 在已連線嘅手機撳呢度：複製跨裝置加密配對碼
                             </button>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                                <input type="password" id="device-pair-code-input" autocomplete="off" placeholder="在新電腦 / iPad 貼上 PAIR_V2:... 配對碼" class="w-full px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
-                                <div class="flex gap-1.5">
-                                    <input type="password" id="device-pair-pin-input" autocomplete="off" placeholder="手機原用 PIN (同本機一樣可留空)" class="flex-1 px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
-                                    <button type="button" onclick="window.applyDevicePairingCode()" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shrink-0">📥 匯入連線</button>
-                                </div>
+                            <div class="space-y-2">
+                                <input type="password" id="device-pair-code-input" autocomplete="off" placeholder="貼上 PAIR_V2:... 配對碼" class="w-full min-w-0 px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
+                                <input type="password" id="device-pair-pin-input" autocomplete="off" placeholder="手機原用 PIN（同本機一樣可留空）" class="w-full min-w-0 px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
+                                <button type="button" onclick="window.applyDevicePairingCode()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shadow-xs whitespace-nowrap transition">📥 匯入配對碼並一鍵連線</button>
                             </div>
                             <div id="device-pair-status" class="hidden text-[11px] font-bold px-3 py-2 rounded-xl bg-slate-950/90 border border-slate-700 text-amber-300"></div>
                         </div>
@@ -531,7 +530,7 @@
                 <details class="bg-emerald-50/70 rounded-2xl p-3 border border-emerald-300 text-xs mt-2.5">
                     <summary class="font-black text-emerald-900 cursor-pointer flex items-center justify-between">
                         <span>🛡️ 雲端資料庫防盜安全規則 (Firestore Rules) 一鍵複製</span>
-                        <span class="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px]">伺服器級防線</span>
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] whitespace-nowrap shrink-0">伺服器級防線</span>
                     </summary>
                     <div class="mt-2.5 space-y-2">
                         <p class="text-[11px] text-slate-600 leading-relaxed">將以下規則貼上至 Firebase Console ➔ <b>Firestore Database</b> ➔ <b>規則 (Rules)</b> 並按「發布」，雲端伺服器就會強制拒絕任何未經 <code class="font-bold">ENC_V2</code> 加密嘅相片、禁止明文密碼上雲端，並鎖死系統設定表防止被惡意刪除。</p>
@@ -594,8 +593,8 @@
                 <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                     <div id="dropdown-editor-container"></div>
                     <div class="mt-3 flex gap-2">
-                        <input type="text" id="new-dropdown-item-input" placeholder="輸入新選項名稱..." class="flex-1 px-3 py-2 bg-white text-xs font-bold rounded-xl border border-slate-300 focus:outline-none">
-                        <button type="button" onclick="window.addDropdownOption()" class="px-4 py-2 bg-slate-900 text-white text-xs font-black rounded-xl">新增</button>
+                        <input type="text" id="new-dropdown-item-input" placeholder="輸入新選項名稱..." class="flex-1 min-w-0 w-full px-3 py-2 bg-white text-xs font-bold rounded-xl border border-slate-300 focus:outline-none">
+                        <button type="button" onclick="window.addDropdownOption()" class="px-4 py-2 bg-slate-900 text-white text-xs font-black rounded-xl whitespace-nowrap shrink-0">新增</button>
                     </div>
                 </div>
             </div>
@@ -605,8 +604,8 @@
                 <h3 class="text-sm font-black text-slate-800 mb-3">🛡️ 安全密碼與師傅頭像橫幅</h3>
                 <div class="space-y-3">
                     <div class="flex gap-2">
-                        <input type="password" id="settings-new-pin" maxlength="32" autocomplete="new-password" placeholder="輸入新安全長密碼 / PIN (支援 6-32 位數字或混合密碼)" class="flex-1 px-3 py-2 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300">
-                        <button type="button" onclick="window.saveNewPin()" class="px-4 py-2 bg-slate-900 text-white text-xs font-black rounded-xl">儲存密碼 (同步上雲端)</button>
+                        <input type="password" id="settings-new-pin" maxlength="32" autocomplete="new-password" placeholder="新密碼 / PIN (6-32位)" class="flex-1 min-w-0 w-full px-3 py-2 bg-slate-50 text-xs font-bold rounded-xl border border-slate-300">
+                        <button type="button" onclick="window.saveNewPin()" class="px-3.5 py-2 bg-slate-900 text-white text-xs font-black rounded-xl whitespace-nowrap shrink-0">儲存密碼</button>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
                         <label class="block w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs text-center rounded-xl cursor-pointer border border-slate-300">
@@ -2482,6 +2481,7 @@
         });
 
         let _cloudConnectPromise = null;
+        let lastCloudErrorMsg = '';
 
         // 🔐 單飛（Single-Flight）雲端認證與連線保證器：確保任何讀寫或啟動 onSnapshot 前，Firebase Auth 管理員已經 100% 完成登入，徹底根治右上角長期顯示「連線中」問題
         async function ensureCloudAuthenticated(isExplicitBind = false) {
@@ -2505,9 +2505,10 @@
                     }
                     if (!_fbModules || !isAppUnlocked) return false;
 
-                    const { initializeApp, getApps, getFirestore, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, setPersistence, inMemoryPersistence } = _fbModules;
+                    const { initializeApp, getApps, getFirestore, initializeFirestore, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, setPersistence, inMemoryPersistence } = _fbModules;
                     const cfg = getFirebaseConfig();
                     if (!cfg.apiKey) {
+                        lastCloudErrorMsg = '尚未設定 Firebase Web API Key';
                         updateCloudStatusUI(false);
                         return false;
                     }
@@ -2517,8 +2518,14 @@
                     let app = getApps().find(a => a.name === appInstanceName);
                     if (!app) {
                         app = initializeApp(cfg, appInstanceName);
+                        try {
+                            db = initializeFirestore ? initializeFirestore(app, { experimentalAutoDetectLongPolling: true }) : getFirestore(app);
+                        } catch (_) {
+                            db = getFirestore(app);
+                        }
+                    } else {
+                        db = getFirestore(app);
                     }
-                    db = getFirestore(app);
                     auth = getAuth(app);
 
                     // 採用純記憶體 Persistence，既確保鎖屏時 IndexedDB 零 Token 殘留，又徹底避免 iOS Safari / Edge 刪除 IndexedDB 造成登入死鎖
@@ -2582,17 +2589,27 @@
                             if (isExplicitBind) {
                                 showToast(`✅ 已成功綁定專屬 UID (${activeUser.uid.slice(0, 8)}...)！`);
                             }
-                        } else if (isExplicitBind && lastAuthError) {
+                        } else if (lastAuthError) {
                             const code = String(lastAuthError?.code || lastAuthError?.message || '');
-                            const disp = document.getElementById('fb-owner-uid-display');
                             let reason = `連線失敗 (${code})`;
                             if (code.includes('api-key-not-valid') || code.includes('invalid-api-key')) {
-                                reason = '❌ Firebase Web API Key 不正確！請確認複製咗完整 AIzaSy... 字串（無多餘空格）。';
+                                reason = '❌ Firebase Web API Key 不正確或已被撤銷，請在「⚙️ 設定」重新輸入新 API Key。';
                             } else if (code.includes('operation-not-allowed')) {
-                                reason = '❌ 尚未在 Firebase Console 開啟「Email/Password」登入方式！請去 Authentication -> Sign-in method 啟用「電子郵件/密碼」。';
+                                reason = '❌ 尚未在 Firebase Console 開啟「Email/Password」登入方式！';
+                            } else if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
+                                reason = '❌ 管理員電郵或密碼不符（auth/invalid-credential），請重新輸入或用「🎲 生成」重綁 UID。';
+                            } else if (code.includes('network-request-failed') || code === 'TIMEOUT') {
+                                reason = '⚠️ 手機網絡連線逾時，請按右上角「重試連線」。';
                             }
+                            lastCloudErrorMsg = reason;
+                            const disp = document.getElementById('fb-owner-uid-display');
+                            const diagPill = document.getElementById('diag-status-pill');
                             if (disp) disp.textContent = reason;
-                            showToast(reason);
+                            if (diagPill) {
+                                diagPill.textContent = reason;
+                                diagPill.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800';
+                            }
+                            if (isExplicitBind) showToast(reason);
                             updateCloudStatusUI(false);
                             return false;
                         }
@@ -2895,13 +2912,18 @@
                 ]);
 
                 if (permDeniedHit && !snap1 && !snap2) {
+                    const curUid = (auth && auth.currentUser && auth.currentUser.uid) ? auth.currentUser.uid : '';
+                    const uidHint = curUid ? `（目前登入 UID：${curUid.slice(0,4)}…${curUid.slice(-4)}）` : '';
+                    lastCloudErrorMsg = `🔒 Firestore 規則拒絕讀取${uidHint}！請撳下方「一鍵複製完整 Firestore 安全規則」並貼去 Firebase Console 發布。`;
                     updateCloudStatusUI(false);
                     const diagPill = document.getElementById('diag-status-pill');
                     if (diagPill) {
-                        diagPill.textContent = '🔒 雲端權限不足（請用手機配對碼匯入同一個 UID）';
+                        diagPill.textContent = '🔒 雲端規則 UID 不符（請複製下方規則去 Firebase 發布）';
                         diagPill.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800';
                     }
-                    showToast('🔒 雲端拒絕讀取：請喺手機「⚙️ 設定」複製加密配對碼並貼到呢部機匯入！');
+                    const disp = document.getElementById('fb-owner-uid-display');
+                    if (disp) disp.textContent = lastCloudErrorMsg;
+                    showToast(lastCloudErrorMsg);
                     return false;
                 }
 
@@ -3092,7 +3114,7 @@
                 } else if (!cloudAuthCreds.email || !cloudAuthCreds.password) {
                     showToast('⚠️ 尚未綁定管理員電郵與密碼！請去「⚙️ 設定」完成方案 A 綁定');
                 } else {
-                    showToast('❌ 雲端管理員驗證失敗，請去「⚙️ 設定」檢查 API Key 或密碼');
+                    showToast(lastCloudErrorMsg || '❌ 雲端管理員驗證失敗，請去「⚙️ 設定」檢查 API Key 或密碼');
                 }
                 return;
             }
