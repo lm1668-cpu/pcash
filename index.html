@@ -47,9 +47,17 @@
         .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 80px); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* 🛡️ 0ms 防閃現保護：在 Tailwind CDN 載入完成前，即時隱藏所有 .hidden 彈窗及底層頁面，杜絕開 App 瞬間閃出「危險操作區」等警告字眼 */
+        .hidden { display: none !important; }
+        body.app-locked > header,
+        body.app-locked > nav,
+        body.app-locked > main,
+        body.app-locked > footer,
+        body.app-locked > div:not(#auth-lock-screen):not(#app-toast) { display: none !important; }
+        #auth-lock-screen { position: fixed; inset: 0; z-index: 50; background-color: #eef2f6; }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen pb-24">
+<body class="bg-slate-100 text-slate-800 min-h-screen pb-24 app-locked">
 
     <!-- 🔒 100% 經典原版登入畫面設計 (每次開網頁強制鎖定，必須親手撳「登入 →」先解鎖) -->
     <div id="auth-lock-screen" class="fixed inset-0 z-50 bg-[#eef2f6] flex flex-col justify-between overflow-y-auto select-none">
@@ -940,6 +948,7 @@
                         clearInterval(lockoutCountdownTimer);
                         errEl.textContent = '';
                     } else {
+                        errEl.className = 'text-center text-xs text-rose-600 font-black h-4 mt-1.5';
                         errEl.textContent = `🚨 密碼保護鎖定中，請等 ${remain} 秒後再試（重新整理無效）`;
                     }
                 };
@@ -1726,7 +1735,11 @@
                 return;
             }
             isVerifyingPin = true;
-            document.getElementById('pin-error-msg').textContent = '🔐 正在執行 310,000 次 PBKDF2 安全核實...';
+            const verifyMsgEl = document.getElementById('pin-error-msg');
+            if (verifyMsgEl) {
+                verifyMsgEl.className = 'text-center text-xs text-emerald-700 font-black h-4 mt-1.5';
+                verifyMsgEl.textContent = '🔐 正在安全核實密碼，請稍候...';
+            }
             try {
 
             let isFirstRunSetup = false;
@@ -1803,9 +1816,14 @@
                 }
                 safeStorageSet('renocamp_pin_hash', userPinHash);
 
+                document.body.classList.remove('app-locked');
                 document.getElementById('auth-lock-screen').classList.add('hidden');
                 document.getElementById('pin-input').value = '';
-                document.getElementById('pin-error-msg').textContent = '';
+                const pinMsgEl = document.getElementById('pin-error-msg');
+                if (pinMsgEl) {
+                    pinMsgEl.textContent = '';
+                    pinMsgEl.className = 'text-center text-xs text-rose-600 font-black h-4 mt-1.5';
+                }
                 resetIdleTimer();
 
                 if (isFirstRunSetup) {
@@ -1834,7 +1852,11 @@
                     startLockoutCountdownIfNeeded();
                 } else {
                     savePersistentLockState();
-                    document.getElementById('pin-error-msg').textContent = `⚠️ 密碼不正確！（剩餘 ${5 - failedPinAttempts} 次機會）`;
+                    const wrongEl = document.getElementById('pin-error-msg');
+                    if (wrongEl) {
+                        wrongEl.className = 'text-center text-xs text-rose-600 font-black h-4 mt-1.5';
+                        wrongEl.textContent = `⚠️ 密碼不正確！（剩餘 ${5 - failedPinAttempts} 次機會）`;
+                    }
                 }
             }
             } finally {
@@ -2130,6 +2152,7 @@
             _isolatedPinBuffer = '';
             const pInput = document.getElementById('pin-input');
             const lockEl = document.getElementById('auth-lock-screen');
+            document.body.classList.add('app-locked');
             if (pInput) pInput.value = '';
             if (lockEl) lockEl.classList.remove('hidden');
 
@@ -4637,6 +4660,8 @@
                     if (st.id !== 'core-app-styles') st.remove();
                 });
 
+                const cloneBody = cloneDoc.querySelector('body');
+                if (cloneBody) cloneBody.classList.add('app-locked');
                 const cloneLock = cloneDoc.querySelector('#auth-lock-screen');
                 if (cloneLock) cloneLock.classList.remove('hidden');
 
