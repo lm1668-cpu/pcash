@@ -515,10 +515,14 @@
                             <button type="button" onclick="window.copyDevicePairingCode()" class="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-xs rounded-xl shadow-xs transition">
                                 📤 在已連線嘅手機撳呢度：複製跨裝置加密配對碼
                             </button>
-                            <div class="flex gap-1.5">
-                                <input type="password" id="device-pair-code-input" autocomplete="off" placeholder="在新電腦 / iPad 貼上 PAIR_V2:... 配對碼" class="flex-1 px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
-                                <button type="button" onclick="window.applyDevicePairingCode()" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shrink-0">📥 一鍵匯入連線</button>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                <input type="password" id="device-pair-code-input" autocomplete="off" placeholder="在新電腦 / iPad 貼上 PAIR_V2:... 配對碼" class="w-full px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
+                                <div class="flex gap-1.5">
+                                    <input type="password" id="device-pair-pin-input" autocomplete="off" placeholder="手機原用 PIN (同本機一樣可留空)" class="flex-1 px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700">
+                                    <button type="button" onclick="window.applyDevicePairingCode()" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shrink-0">📥 匯入連線</button>
+                                </div>
                             </div>
+                            <div id="device-pair-status" class="hidden text-[11px] font-bold px-3 py-2 rounded-xl bg-slate-950/90 border border-slate-700 text-amber-300"></div>
                         </div>
                     </div>
                 </details>
@@ -1754,11 +1758,11 @@
                 document.getElementById('pin-error-msg').textContent = '⚠️ 請先輸入私人 PIN 碼再撳登入！';
                 return;
             }
-            // 若新裝置尚未設定任何 PIN 碼，強制要求首次設定最少 6 位數字高強度 PIN
-            if (!userPinHash && input.length < 6) {
+            // 若新裝置尚未設定任何 PIN 碼，要求輸入最少 4 位（建議 6 位以上）並與手機一致
+            if (!userPinHash && input.length < 4) {
                 _isolatedPinBuffer = '';
                 syncPinMaskDisplay();
-                document.getElementById('pin-error-msg').textContent = '🔐 首次啟用請輸入最少 6 位數字自訂安全 PIN 碼！';
+                document.getElementById('pin-error-msg').textContent = '🔐 請輸入最少 4 位私人 PIN 碼（新電腦請輸入與手機相同嘅 PIN）！';
                 return;
             }
             isVerifyingPin = true;
@@ -2241,6 +2245,11 @@
                 auditResEl.innerHTML = '';
                 auditResEl.classList.add('hidden');
             }
+            const pairStatEl = document.getElementById('device-pair-status');
+            if (pairStatEl) {
+                pairStatEl.textContent = '';
+                pairStatEl.classList.add('hidden');
+            }
             const toastTextEl = document.getElementById('app-toast-text');
             if (toastTextEl) toastTextEl.textContent = '提示訊息';
             if (auth && _fbModules && _fbModules.signOut) {
@@ -2251,7 +2260,7 @@
             _cloudRetryCount = 0;
             if (_cloudRetryTimer) { clearTimeout(_cloudRetryTimer); _cloudRetryTimer = null; }
             [
-                'gh-token', 'settings-new-pin', 'fb-auth-password', 'fb-api-key', 'fb-auth-email', 'device-pair-code-input',
+                'gh-token', 'settings-new-pin', 'fb-auth-password', 'fb-api-key', 'fb-auth-email', 'device-pair-code-input', 'device-pair-pin-input',
                 'global-search-input', 'tx-edit-id', 'tx-amount', 'tx-person', 'tx-note',
                 'vault-photo-amount', 'vault-photo-note', 'cnt-bundle-100k', 'cnt-note-1000',
                 'cnt-note-500', 'cnt-note-100', 'new-dropdown-item-input'
@@ -2358,22 +2367,52 @@
         window.applyDevicePairingCode = async function() {
             if (!isAppUnlocked || !activeSessionPin) return;
             const inputEl = document.getElementById('device-pair-code-input');
-            const rawCode = (inputEl ? inputEl.value : '').trim();
-            if (inputEl) { inputEl.value = ''; inputEl.removeAttribute('value'); }
+            const pinEl = document.getElementById('device-pair-pin-input');
+            const statusBox = document.getElementById('device-pair-status');
+            const setPairStatus = (msg, isOk = false) => {
+                if (!statusBox) return;
+                statusBox.textContent = msg;
+                statusBox.className = isOk
+                    ? 'text-[11px] font-bold px-3 py-2 rounded-xl bg-emerald-950/90 border border-emerald-500/50 text-emerald-300'
+                    : 'text-[11px] font-bold px-3 py-2 rounded-xl bg-rose-950/90 border border-rose-500/50 text-amber-300';
+                statusBox.classList.remove('hidden');
+            };
+
+            const rawCode = (inputEl ? inputEl.value : '').replace(/\s+/g, '').trim();
+            const phonePinTyped = (pinEl ? pinEl.value : '').trim();
             if (!rawCode || !rawCode.startsWith('PAIR_V2:ENC_V2:')) {
-                showToast('⚠️ 配對碼格式不正確！請在已連線嘅手機撳「複製跨裝置加密配對碼」後完整貼上。');
+                setPairStatus('⚠️ 配對碼格式不正確！請在已連線嘅手機撳「複製跨裝置加密配對碼」後完整貼上。');
                 return;
             }
             try {
                 const encPayload = rawCode.slice('PAIR_V2:'.length);
-                const decJson = await decryptSensitiveString(encPayload, activeSessionPin);
+                let effectivePin = phonePinTyped || activeSessionPin;
+                let decJson = await decryptSensitiveString(encPayload, effectivePin);
+                if (!decJson && phonePinTyped && phonePinTyped !== activeSessionPin) {
+                    decJson = await decryptSensitiveString(encPayload, activeSessionPin);
+                    if (decJson) effectivePin = activeSessionPin;
+                }
                 if (!decJson) {
-                    showToast('🚨 無法解密配對碼！請確認這部電腦嘅登入 PIN 碼與手機完全相同。');
+                    setPairStatus('🚨 無法解密配對碼（本機登入 PIN 與手機唔同）！請喺右邊「手機原用 PIN」格輸入你手機開夾萬嘅 PIN 碼，再撳一次「📥 匯入連線」。');
+                    showToast('🚨 請在右格輸入手機原用 PIN 碼以解密配對碼！');
                     return;
                 }
+
+                if (inputEl) { inputEl.value = ''; inputEl.removeAttribute('value'); }
+                if (pinEl) { pinEl.value = ''; pinEl.removeAttribute('value'); }
+
+                // 若手機 PIN 與本機剛設定嘅 PIN 不同，自動將本機 PIN 同步為手機 PIN，確保所有雲端 ENC_V2 帳目與相片即時解密成功！
+                if (effectivePin !== activeSessionPin) {
+                    _derivedKeyCache.clear();
+                    _cipherDecryptCache.clear();
+                    activeSessionPin = effectivePin;
+                    userPinHash = await createPbkdf2PinVerifier(effectivePin);
+                    safeStorageSet('renocamp_pin_hash', userPinHash);
+                }
+
                 const parsed = JSON.parse(decJson);
                 if (!parsed.apiKey || !parsed.email || !parsed.password) {
-                    showToast('⚠️ 配對碼內容不完整，請在手機重新複製！');
+                    setPairStatus('⚠️ 配對碼內容不完整，請在手機重新複製！');
                     return;
                 }
                 const proj = String(parsed.projectId || 'my-renocamp-app').trim();
@@ -2412,13 +2451,27 @@
                 }
 
                 syncSecretFieldPlaceholders();
+                setPairStatus('⏳ 配對碼解密成功！正在切換至手機專屬 Owner UID 並拉取全部雲端資料...', true);
                 showToast('🔐 配對碼解密成功！正在登入雲端並同步全部資料...');
-                const ok = await connectCloudDatabase(false);
+
+                // 強制登出舊嘅錯誤 Auth Session，確保用手機匯入嘅專屬管理員帳號重新登入！
+                if (auth && _fbModules && _fbModules.signOut) {
+                    await _fbModules.signOut(auth).catch(() => {});
+                }
+                activeUnsubscribers.forEach(unsub => { try { unsub(); } catch (_) {} });
+                activeUnsubscribers = [];
+                _cloudConnectPromise = null;
+
+                const ok = await connectCloudDatabase(true);
                 if (ok) {
+                    setPairStatus(`✅ 跨裝置配對成功！已同步 ${transactions.length} 筆夾萬收支記錄與 ${vaultPhotos.length} 張加密相片。`, true);
+                    showToast(`✅ 跨裝置配對成功！已載入 ${transactions.length} 筆記錄`);
                     window.switchTab('home');
+                } else {
+                    setPairStatus('⚠️ 已匯入憑證，但登入 Firebase 失敗！請檢查網絡或確認手機嘅配對碼為最新憑證。');
                 }
             } catch (err) {
-                showToast('⚠️ 匯入配對碼時發生錯誤，請確認複製完整並重試！');
+                setPairStatus('⚠️ 匯入配對碼時發生錯誤：' + (err?.message || '請確認複製完整並重試'));
             }
         };
 
@@ -4858,7 +4911,7 @@
                 cloneDoc.removeAttribute('data-cloud-auth-enc');
                 document.documentElement.removeAttribute('data-cloud-auth-enc');
                 [
-                    'pin-input', 'gh-token', 'fb-api-key', 'fb-auth-email', 'fb-auth-password', 'device-pair-code-input',
+                    'pin-input', 'gh-token', 'fb-api-key', 'fb-auth-email', 'fb-auth-password', 'device-pair-code-input', 'device-pair-pin-input',
                     'settings-new-pin', 'global-search-input', 'tx-edit-id', 'tx-amount', 'tx-person',
                     'tx-note', 'vault-photo-amount', 'vault-photo-note', 'cnt-bundle-100k',
                     'cnt-note-1000', 'cnt-note-500', 'cnt-note-100', 'new-dropdown-item-input'
