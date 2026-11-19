@@ -98,7 +98,7 @@
             <div class="bg-white w-full max-w-[390px] rounded-[30px] border-[2.5px] border-[#1e293b] shadow-[0_10px_28px_rgba(15,37,55,0.16)] p-4">
                 <!-- 圓角橫幅圖 (0秒極速載入) -->
                 <div class="relative w-full h-44 rounded-2xl overflow-hidden border border-slate-300 bg-slate-800 mb-3.5 shadow-xs">
-                    <img id="lock-screen-banner" src="https://images.unsplash.com/photo-1541888946425-d0fbb18f192b?auto=format&amp;fit=crop&amp;w=1000&amp;q=80" alt="夾萬橫幅" class="w-full h-full object-cover" fetchpriority="high" decoding="sync">
+                    <img id="lock-screen-banner" src="https://images.unsplash.com/photo-1541888946425-d0fbb18f192b?auto=format&amp;fit=crop&amp;w=1000&amp;q=80" alt="夾萬橫幅" onerror="this.style.display='none'" onload="this.style.display='block'" class="w-full h-full object-cover" fetchpriority="high" decoding="sync" style="display: none;">
                     <script>
                         (function() {
                             try {
@@ -1032,13 +1032,19 @@
 
         let _pendingQrPairCode = '';
         let _pairQrTimer = null;
-        (function captureQrPairHashOnOpen() {
+        function captureQrPairHashFromLocation() {
             try {
                 const rawHash = String(window.location.hash || '');
-                if (rawHash.startsWith('#pair=') || rawHash.includes('pair=PAIR_V2:')) {
-                    const m = rawHash.match(/pair=(PAIR_V2:ENC_V2:[A-Za-z0-9+/=%:_-]+)/);
+                if (rawHash.startsWith('#pair=') || rawHash.includes('pair=')) {
+                    const decodedHash = decodeURIComponent(rawHash);
+                    const m = decodedHash.match(/pair=(PAIR_V2:ENC_V2:[A-Za-z0-9+/=:_-]+)/);
                     if (m && m[1]) {
-                        _pendingQrPairCode = decodeURIComponent(m[1]).trim();
+                        _pendingQrPairCode = m[1].trim();
+                        const msgEl = document.getElementById('pin-error-msg');
+                        if (msgEl) {
+                            msgEl.className = 'text-center text-xs text-emerald-700 font-black h-4 mt-1.5';
+                            msgEl.textContent = '📱 已讀取加密配對碼，請輸入主手機 PIN 碼即自動同步！';
+                        }
                     }
                     // 立即抹除網址列嘅 #pair= 片段，絕不殘留於瀏覽記錄或截圖
                     if (window.history && window.history.replaceState) {
@@ -1046,7 +1052,9 @@
                     }
                 }
             } catch (_) {}
-        })();
+        }
+        captureQrPairHashFromLocation();
+        window.addEventListener('hashchange', captureQrPairHashFromLocation);
 
         (function enforceSecurityLockOnOpen() {
             const lockEl = document.getElementById('auth-lock-screen');
