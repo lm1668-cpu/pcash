@@ -55,6 +55,19 @@
         body.app-locked > footer,
         body.app-locked > div:not(#auth-lock-screen):not(#app-toast) { display: none !important; }
         #auth-lock-screen { position: fixed; inset: 0; z-index: 50; background-color: #eef2f6; }
+        /* 📱 iPhone / iOS 防止點擊輸入框自動放大頁面（iOS WebKit 要求 input/select/textarea 字體 >= 16px 先唔會強制縮放） */
+        html, body { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
+        @media screen and (max-width: 768px) {
+            input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+            select,
+            textarea {
+                font-size: 16px !important;
+            }
+            input::placeholder,
+            textarea::placeholder {
+                font-size: 13px;
+            }
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen pb-24 app-locked">
