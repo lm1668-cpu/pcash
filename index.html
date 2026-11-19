@@ -2256,6 +2256,7 @@
             }
             isCloudConnected = false;
             _cloudConnectPromise = null;
+            lastCloudSyncStats = { rawCloudTx: 0, decryptedTx: 0, failedDecryptTx: 0, skippedDeletedTx: 0, rawCloudPhotos: 0 };
             _cloudRetryCount = 0;
             if (_cloudRetryTimer) { clearTimeout(_cloudRetryTimer); _cloudRetryTimer = null; }
             [
@@ -2681,6 +2682,50 @@
         }
 
         let hasPlaintextCloudTxToHeal = false;
+        let lastCloudSyncStats = { rawCloudTx: 0, decryptedTx: 0, failedDecryptTx: 0, skippedDeletedTx: 0, rawCloudPhotos: 0 };
+
+        // 🔓 若電腦登入 PIN 與手機不同導致雲端帳目無法解密，用戶可直接在主頁輸入手機 PIN 一鍵對齊並即時解密全部雲端資料
+        window.unlockCloudWithPhonePin = async function() {
+            if (!isAppUnlocked) return;
+            const el = document.getElementById('inline-decrypt-pin');
+            const typedPin = (el ? el.value : '').trim();
+            if (!typedPin || typedPin.length < 4) {
+                showToast('⚠️ 請輸入你手機開夾萬嘅原用 PIN 碼！');
+                return;
+            }
+            if (el) { el.value = ''; el.removeAttribute('value'); }
+            const oldPin = activeSessionPin;
+            _derivedKeyCache.clear();
+            _cipherDecryptCache.clear();
+            activeSessionPin = typedPin;
+            userPinHash = await createPbkdf2PinVerifier(typedPin);
+            safeStorageSet('renocamp_pin_hash', userPinHash);
+            // 同步以新 PIN 重新加密本機雲端憑證與 GitHub Token，確保下次直接用手機 PIN 登入即自動連線
+            if (sessionFbApiKey || (cloudAuthCreds && cloudAuthCreds.email)) {
+                const cfg = getFirebaseConfig();
+                const reEncAuth = await encryptLocalSensitiveString(JSON.stringify({
+                    projectId: cfg.projectId || 'my-renocamp-app',
+                    apiKey: sessionFbApiKey || '',
+                    email: (cloudAuthCreds && cloudAuthCreds.email) || '',
+                    password: (cloudAuthCreds && cloudAuthCreds.password) || '',
+                    ownerUid: boundOwnerUid || ''
+                }), typedPin);
+                if (reEncAuth) safeStorageSet('renocamp_cloud_auth_enc', reEncAuth);
+            }
+            if (sessionGhToken) {
+                const reEncGh = await encryptLocalSensitiveString(sessionGhToken, typedPin);
+                if (reEncGh) safeStorageSet('renocamp_gh_token_enc', reEncGh);
+            }
+            showToast('🔓 已切換為手機 PIN，正在重新解密雲端全部資料...');
+            await pullAllFromCloudNow();
+            if (transactions.length > 0) {
+                showToast(`✅ 解密成功！已同步 ${transactions.length} 筆夾萬記錄`);
+            } else if (lastCloudSyncStats.failedDecryptTx > 0) {
+                // 解密仍然失敗，提示 PIN 仍未吻合
+                showToast('❌ 此 PIN 仍無法解密雲端帳目，請再確認手機開夾萬嘅 PIN 碼！');
+            }
+        };
+
         async function mergeCloudTransactions(cloudDocs) {
             if (!isAppUnlocked || !Array.isArray(cloudDocs)) return;
             const mergedMap = new Map();
@@ -2694,15 +2739,22 @@
 
             let encTotalCount = 0;
             let encFailCount = 0;
+            let skippedDelCount = 0;
+            let decOkCount = 0;
+            const seenCloudIds = new Set();
             for (const rawDoc of cloudDocs) {
                 const id = String(rawDoc.id || rawDoc.docId);
                 if (!id) continue;
+                seenCloudIds.add(id);
                 if (rawDoc.deleted === true) {
                     deletedIds.add(id);
                     mergedMap.delete(id);
                     continue;
                 }
-                if (deletedIds.has(id)) continue;
+                if (deletedIds.has(id)) {
+                    skippedDelCount++;
+                    continue;
+                }
 
                 const isEncDoc = Boolean(rawDoc.encTxPayload && String(rawDoc.encTxPayload).startsWith('ENC_V'));
                 if (isEncDoc) encTotalCount++;
@@ -2715,13 +2767,18 @@
                     if (isEncDoc) encFailCount++;
                     continue;
                 }
+                decOkCount++;
                 const existing = mergedMap.get(id);
                 if (!existing || (Number(incoming.updatedAt || 0) >= Number(existing.updatedAt || 0))) {
                     mergedMap.set(id, incoming);
                 }
             }
+            lastCloudSyncStats.rawCloudTx = Math.max(seenCloudIds.size, encTotalCount);
+            lastCloudSyncStats.decryptedTx = decOkCount;
+            lastCloudSyncStats.failedDecryptTx = encFailCount;
+            lastCloudSyncStats.skippedDeletedTx = skippedDelCount;
             if (encTotalCount > 0 && encFailCount === encTotalCount) {
-                showToast(`🚨 雲端已有 ${encTotalCount} 筆加密資料，但目前登入 PIN 無法解密！請確認電腦與手機使用相同 PIN 碼！`);
+                showToast(`🚨 雲端已有 ${encTotalCount} 筆加密資料，但目前登入 PIN 無法解密！請在主頁輸入手機 PIN 即時解密。`);
             }
 
             transactions = Array.from(mergedMap.values());
@@ -2933,6 +2990,11 @@
                 hasPlaintextCloudTxToHeal = false;
                 if (allCloudTx.length > 0) {
                     await mergeCloudTransactions(allCloudTx);
+                } else {
+                    lastCloudSyncStats.rawCloudTx = 0;
+                    lastCloudSyncStats.decryptedTx = 0;
+                    lastCloudSyncStats.failedDecryptTx = 0;
+                    renderAllLists();
                 }
 
                 const allCloudPhotos = [];
@@ -3361,9 +3423,31 @@
             const homeRecentEl = document.getElementById('home-recent-list');
             if (homeRecentEl) {
                 const recentList = filtered.slice(0, 6);
-                homeRecentEl.innerHTML = recentList.length === 0
-                    ? `<div class="text-center py-6 text-slate-400 text-xs font-bold">暫無夾萬收支記錄</div>`
-                    : recentList.map(renderTransactionItemHTML).join('');
+                if (recentList.length === 0) {
+                    if (lastCloudSyncStats.failedDecryptTx > 0) {
+                        homeRecentEl.innerHTML = `
+                            <div class="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-2.5">
+                                <div class="text-xs font-black text-rose-800">🚨 雲端已拉到 ${lastCloudSyncStats.failedDecryptTx} 筆加密帳目，但目前這部機嘅登入 PIN 與手機不同，無法解密！</div>
+                                <div class="flex items-center gap-2 max-w-sm mx-auto">
+                                    <input type="password" id="inline-decrypt-pin" autocomplete="off" placeholder="輸入手機開夾萬嘅原用 PIN" class="flex-1 min-w-0 px-3 py-2 bg-white text-slate-900 text-xs font-bold rounded-xl border border-rose-300">
+                                    <button type="button" onclick="window.unlockCloudWithPhonePin()" class="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl whitespace-nowrap shrink-0">🔓 即時解密</button>
+                                </div>
+                            </div>
+                        `;
+                    } else if (isCloudConnected && transactions.length === 0 && !globalSearchQuery.trim()) {
+                        const uidShort = boundOwnerUid ? `${boundOwnerUid.slice(0,4)}…${boundOwnerUid.slice(-4)}` : '未綁定';
+                        homeRecentEl.innerHTML = `
+                            <div class="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-center space-y-1.5">
+                                <div class="text-xs font-black text-amber-900">☁️ 已連上雲端 (UID: ${escapeHTML(uidShort)})，但雲端目前有 ${lastCloudSyncStats.rawCloudTx} 筆帳目</div>
+                                <div class="text-[11px] font-bold text-amber-700">請喺有資料嘅手機去「⚙️ 設定」撳一下「☁️ 將本機全部資料強制推上雲端」，再喺電腦撳右上角「🔄 同步」！</div>
+                            </div>
+                        `;
+                    } else {
+                        homeRecentEl.innerHTML = `<div class="text-center py-6 text-slate-400 text-xs font-bold">暫無夾萬收支記錄</div>`;
+                    }
+                } else {
+                    homeRecentEl.innerHTML = recentList.map(renderTransactionItemHTML).join('');
+                }
             }
 
             const incomeEl = document.getElementById('income-page-list');
@@ -4754,11 +4838,29 @@
                 promises.push(setDoc(doc(db, "settings", "dropdowns"), { encOptions: encDropdownsPayload, encrypted: true, updatedAt: nowTs }));
                 promises.push(setDoc(doc(db, "settings", "deleted_records"), encTombDoc));
 
-                await withTimeout(Promise.all(promises), 20000);
+                const tasks = promises;
+                let okCount = 0;
+                let failCount = 0;
+                let firstErrCode = '';
+                const settled = await withTimeout(Promise.allSettled(tasks), 35000);
+                settled.forEach(r => {
+                    if (r.status === 'fulfilled') okCount++;
+                    else {
+                        failCount++;
+                        if (!firstErrCode) firstErrCode = String(r.reason?.code || r.reason?.message || 'unknown');
+                    }
+                });
+                if (okCount === 0 && failCount > 0) {
+                    throw new Error(firstErrCode || 'ALL_CLOUD_WRITES_FAILED');
+                }
                 _cloudRetryCount = 0;
                 updateCloudStatusUI(true);
-                if (!silent) showToast('☁️ 所有夾萬記錄及 ENC_V2 加密相片已 100% 同步上雲端！');
-                return true;
+                if (!silent) {
+                    showToast(failCount > 0
+                        ? `⚠️ 已推送 ${okCount} 項上雲端（${failCount} 項失敗：${firstErrCode}）`
+                        : `☁️ 已成功推送 ${transactions.length} 筆帳目及 ${vaultPhotos.length} 張相片上雲端！`);
+                }
+                return failCount === 0;
             } catch (e) {
                 console.error(e);
                 updateCloudStatusUI(false);
