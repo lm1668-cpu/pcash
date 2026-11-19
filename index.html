@@ -2836,79 +2836,96 @@
                 activeUnsubscribers.push(unsub);
             });
 
-            const unsubSettings = onSnapshot(collection(db, "settings"), (snapshot) => {
-                if (!isAppUnlocked) return;
+            const { doc } = _fbModules;
+            // 🛡️ 修復：Firestore 安全規則按 settingId 白名單授權，必須逐個監聽單一文件 doc()，而唔可以監聽整個 settings 集合（否則會靜默觸發 permission-denied 令下拉選單無法同步！）
+            const unsubBranding = onSnapshot(doc(db, "settings", "branding"), (docSnap) => {
+                if (!isAppUnlocked || !docSnap.exists()) return;
                 updateCloudStatusUI(true);
-                snapshot.forEach(docSnap => {
-                    const data = docSnap.data();
-                    if (docSnap.id === 'branding') {
-                        const cloudTs = Number(data.updatedAt || 0);
-                        if (cloudTs >= localBrandingUpdatedAt) {
-                            localBrandingUpdatedAt = cloudTs;
-                            safeStorageSet('renocamp_branding_updated_at', String(cloudTs));
-                            (async () => {
-                                let bObj = data;
-                                if (data.encBranding && String(data.encBranding).startsWith('ENC_V')) {
-                                    const decB = await decryptSensitiveString(data.encBranding, activeSessionPin);
-                                    if (decB) {
-                                        try { bObj = JSON.parse(decB); } catch (_) {}
-                                    }
-                                }
-                                if (bObj.banner && bObj.banner !== savedBanner && (String(bObj.banner).startsWith('data:image/') || String(bObj.banner).startsWith('https://'))) {
-                                    savedBanner = bObj.banner;
-                                    safeStorageSet('renocamp_banner', savedBanner);
-                                    const lb = document.getElementById('lock-screen-banner');
-                                    if (lb) lb.src = savedBanner;
-                                }
-                                if (bObj.avatar && bObj.avatar !== savedAvatar && (String(bObj.avatar).startsWith('data:image/') || String(bObj.avatar).startsWith('https://'))) {
-                                    savedAvatar = bObj.avatar;
-                                    safeStorageSet('renocamp_avatar', savedAvatar);
-                                    applyAvatarToDOM(savedAvatar);
-                                }
-                            })();
-                        }
-                    } else if (docSnap.id === 'dropdowns' && (data.encOptions || data.options)) {
-                        const cloudTs = Number(data.updatedAt || 0);
-                        if (cloudTs >= localDropdownsUpdatedAt) {
-                            localDropdownsUpdatedAt = cloudTs;
-                            safeStorageSet('renocamp_dropdowns_updated_at', String(cloudTs));
-                            (async () => {
-                                let nextOpts = data.options || null;
-                                if (data.encOptions && String(data.encOptions).startsWith('ENC_V')) {
-                                    const decO = await decryptSensitiveString(data.encOptions, activeSessionPin);
-                                    if (decO) {
-                                        try { nextOpts = JSON.parse(decO); } catch (_) {}
-                                    }
-                                }
-                                if (nextOpts && typeof nextOpts === 'object') {
-                                    customDropdowns = nextOpts;
-                                    const encD = await encryptLocalSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
-                                    if (encD) {
-                                        safeStorageSet('renocamp_dropdowns_enc', encD);
-                                        safeStorageRemove('renocamp_dropdowns');
-                                    }
-                                    renderDropdownEditor();
-                                }
-                            })();
-                        }
-                    } else if (docSnap.id === 'deleted_records') {
-                        (async () => {
-                            const { txChanged, photoChanged } = await applyCloudDeletedRecordsDoc(data, activeSessionPin);
-                            if (txChanged) {
-                                transactions = transactions.filter(t => !deletedIds.has(String(t.id)));
-                                saveLocalTransactions();
-                                renderAllLists();
-                            }
-                            if (photoChanged) {
-                                vaultPhotos = vaultPhotos.filter(p => !deletedPhotoIds.has(String(p.id)));
-                                saveLocalVaultPhotos();
-                                renderVaultPhotosGrid();
-                            }
-                        })();
-                    }
-                });
+                applyCloudBrandingDoc(docSnap.data());
             }, () => {});
-            activeUnsubscribers.push(unsubSettings);
+            activeUnsubscribers.push(unsubBranding);
+
+            const unsubDropdowns = onSnapshot(doc(db, "settings", "dropdowns"), (docSnap) => {
+                if (!isAppUnlocked || !docSnap.exists()) return;
+                updateCloudStatusUI(true);
+                applyCloudDropdownsDoc(docSnap.data());
+            }, () => {});
+            activeUnsubscribers.push(unsubDropdowns);
+
+            const unsubDeleted = onSnapshot(doc(db, "settings", "deleted_records"), (docSnap) => {
+                if (!isAppUnlocked || !docSnap.exists()) return;
+                updateCloudStatusUI(true);
+                (async () => {
+                    const { txChanged, photoChanged } = await applyCloudDeletedRecordsDoc(docSnap.data(), activeSessionPin);
+                    if (txChanged) {
+                        transactions = transactions.filter(t => !deletedIds.has(String(t.id)));
+                        saveLocalTransactions();
+                        renderAllLists();
+                    }
+                    if (photoChanged) {
+                        vaultPhotos = vaultPhotos.filter(p => !deletedPhotoIds.has(String(p.id)));
+                        saveLocalVaultPhotos();
+                        renderVaultPhotosGrid();
+                    }
+                })();
+            }, () => {});
+            activeUnsubscribers.push(unsubDeleted);
+        }
+
+        async function applyCloudBrandingDoc(data) {
+            if (!data || typeof data !== 'object') return;
+            const cloudTs = Number(data.updatedAt || 0);
+            if (cloudTs >= localBrandingUpdatedAt || localBrandingUpdatedAt === 0) {
+                if (cloudTs > 0) {
+                    localBrandingUpdatedAt = cloudTs;
+                    safeStorageSet('renocamp_branding_updated_at', String(cloudTs));
+                }
+                let bObj = data;
+                if (data.encBranding && String(data.encBranding).startsWith('ENC_V')) {
+                    const decB = await decryptSensitiveString(data.encBranding, activeSessionPin);
+                    if (decB) {
+                        try { bObj = JSON.parse(decB); } catch (_) {}
+                    }
+                }
+                if (bObj.banner && bObj.banner !== savedBanner && (String(bObj.banner).startsWith('data:image/') || String(bObj.banner).startsWith('https://'))) {
+                    savedBanner = bObj.banner;
+                    safeStorageSet('renocamp_banner', savedBanner);
+                    const lb = document.getElementById('lock-screen-banner');
+                    if (lb) lb.src = savedBanner;
+                }
+                if (bObj.avatar && bObj.avatar !== savedAvatar && (String(bObj.avatar).startsWith('data:image/') || String(bObj.avatar).startsWith('https://'))) {
+                    savedAvatar = bObj.avatar;
+                    safeStorageSet('renocamp_avatar', savedAvatar);
+                    applyAvatarToDOM(savedAvatar);
+                }
+            }
+        }
+
+        async function applyCloudDropdownsDoc(data) {
+            if (!data || typeof data !== 'object' || (!data.encOptions && !data.options)) return;
+            const cloudTs = Number(data.updatedAt || 0);
+            if (cloudTs >= localDropdownsUpdatedAt || localDropdownsUpdatedAt === 0) {
+                let nextOpts = data.options || null;
+                if (data.encOptions && String(data.encOptions).startsWith('ENC_V')) {
+                    const decO = await decryptSensitiveString(data.encOptions, activeSessionPin);
+                    if (decO) {
+                        try { nextOpts = JSON.parse(decO); } catch (_) {}
+                    }
+                }
+                if (nextOpts && typeof nextOpts === 'object' && Array.isArray(nextOpts.incomeCategory)) {
+                    if (cloudTs > 0) {
+                        localDropdownsUpdatedAt = cloudTs;
+                        safeStorageSet('renocamp_dropdowns_updated_at', String(cloudTs));
+                    }
+                    customDropdowns = nextOpts;
+                    const encD = await encryptLocalSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
+                    if (encD) {
+                        safeStorageSet('renocamp_dropdowns_enc', encD);
+                        safeStorageRemove('renocamp_dropdowns');
+                    }
+                    renderDropdownEditor();
+                }
+            }
         }
 
         function mergeCloudVaultPhotos(cloudPhotos) {
@@ -2956,9 +2973,19 @@
                 const fetchDocFresh = (ref) => (getDocFromServer ? getDocFromServer(ref).catch(() => getDoc(ref)) : getDoc(ref)).catch(onFetchErr);
                 const fetchColFresh = (ref) => (getDocsFromServer ? getDocsFromServer(ref).catch(() => getDocs(ref)) : getDocs(ref)).catch(onFetchErr);
 
-                const delDoc = await fetchDocFresh(doc(db, "settings", "deleted_records"));
+                const [delDoc, dropDoc, brandDoc] = await Promise.all([
+                    fetchDocFresh(doc(db, "settings", "deleted_records")),
+                    fetchDocFresh(doc(db, "settings", "dropdowns")),
+                    fetchDocFresh(doc(db, "settings", "branding"))
+                ]);
                 if (delDoc && delDoc.exists()) {
                     await applyCloudDeletedRecordsDoc(delDoc.data(), activeSessionPin);
+                }
+                if (dropDoc && dropDoc.exists()) {
+                    await applyCloudDropdownsDoc(dropDoc.data());
+                }
+                if (brandDoc && brandDoc.exists()) {
+                    await applyCloudBrandingDoc(brandDoc.data());
                 }
 
                 const [snap1, snap2, pSnap1, pSnap2] = await Promise.all([
@@ -4492,6 +4519,9 @@
             if (!val) return;
             if (!customDropdowns[currentDropdownTab].includes(val)) {
                 customDropdowns[currentDropdownTab].push(val);
+                const nowTs = Date.now();
+                localDropdownsUpdatedAt = nowTs;
+                safeStorageSet('renocamp_dropdowns_updated_at', String(nowTs));
                 const dropJson = JSON.stringify(customDropdowns);
                 const encLocalD = await encryptLocalSensitiveString(dropJson, activeSessionPin);
                 const encCloudD = await encryptSensitiveString(dropJson, activeSessionPin);
@@ -4501,9 +4531,11 @@
                 }
                 input.value = '';
                 renderDropdownEditor();
-                if (db && encCloudD) {
+                await ensureCloudAuthenticated(false);
+                if (db && _fbModules && encCloudD) {
                     const { doc, setDoc } = _fbModules;
-                    await setDoc(doc(db, "settings", "dropdowns"), { encOptions: encCloudD, encrypted: true, updatedAt: Date.now() });
+                    await setDoc(doc(db, "settings", "dropdowns"), { encOptions: encCloudD, encrypted: true, updatedAt: nowTs });
+                    showToast(`✅ 已新增「${val}」並即時同步上雲端！`);
                 }
             }
         };
@@ -4511,7 +4543,10 @@
         window.removeDropdownOption = async function(tab, idx) {
             if (!isAppUnlocked) return;
             if (customDropdowns[tab].length <= 1) return showToast('⚠️ 最少要保留一個選項！');
-            customDropdowns[tab].splice(idx, 1);
+            const removed = customDropdowns[tab].splice(idx, 1)[0];
+            const nowTs = Date.now();
+            localDropdownsUpdatedAt = nowTs;
+            safeStorageSet('renocamp_dropdowns_updated_at', String(nowTs));
             const dropJson = JSON.stringify(customDropdowns);
             const encLocalD = await encryptLocalSensitiveString(dropJson, activeSessionPin);
             const encCloudD = await encryptSensitiveString(dropJson, activeSessionPin);
@@ -4520,9 +4555,11 @@
                 safeStorageRemove('renocamp_dropdowns');
             }
             renderDropdownEditor();
-            if (db && encCloudD) {
+            await ensureCloudAuthenticated(false);
+            if (db && _fbModules && encCloudD) {
                 const { doc, setDoc } = _fbModules;
-                await setDoc(doc(db, "settings", "dropdowns"), { encOptions: encCloudD, encrypted: true, updatedAt: Date.now() });
+                await setDoc(doc(db, "settings", "dropdowns"), { encOptions: encCloudD, encrypted: true, updatedAt: nowTs });
+                showToast(`🗑️ 已移除「${removed || ''}」並同步上雲端！`);
             }
         };
 
@@ -4826,16 +4863,20 @@
                 }
                 saveLocalVaultPhotos();
                 const nowTs = Date.now();
-                localBrandingUpdatedAt = nowTs;
-                localDropdownsUpdatedAt = nowTs;
-                safeStorageSet('renocamp_branding_updated_at', String(nowTs));
-                safeStorageSet('renocamp_dropdowns_updated_at', String(nowTs));
-                // 🛡️ [高危 1 修復] 雲端 branding (頭像/橫幅) 與 dropdowns (自訂項目/銀行選單) 全面升級為 ENC_V2 密文入庫
-                const encBrandingPayload = await encryptSensitiveString(JSON.stringify({ banner: savedBanner, avatar: savedAvatar }), activeSessionPin);
-                const encDropdownsPayload = await encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
+                const isDefaultDropdowns = JSON.stringify(customDropdowns) === JSON.stringify(DEFAULT_DROPDOWNS);
+                if (!silent || localBrandingUpdatedAt > 0) {
+                    localBrandingUpdatedAt = nowTs;
+                    safeStorageSet('renocamp_branding_updated_at', String(nowTs));
+                    const encBrandingPayload = await encryptSensitiveString(JSON.stringify({ banner: savedBanner, avatar: savedAvatar }), activeSessionPin);
+                    promises.push(setDoc(doc(db, "settings", "branding"), { encBranding: encBrandingPayload, encrypted: true, updatedAt: nowTs }));
+                }
+                if (!silent || !isDefaultDropdowns || localDropdownsUpdatedAt > 0) {
+                    localDropdownsUpdatedAt = nowTs;
+                    safeStorageSet('renocamp_dropdowns_updated_at', String(nowTs));
+                    const encDropdownsPayload = await encryptSensitiveString(JSON.stringify(customDropdowns), activeSessionPin);
+                    promises.push(setDoc(doc(db, "settings", "dropdowns"), { encOptions: encDropdownsPayload, encrypted: true, updatedAt: nowTs }));
+                }
                 const encTombDoc = await buildEncryptedCloudTombstonesDoc(activeSessionPin);
-                promises.push(setDoc(doc(db, "settings", "branding"), { encBranding: encBrandingPayload, encrypted: true, updatedAt: nowTs }));
-                promises.push(setDoc(doc(db, "settings", "dropdowns"), { encOptions: encDropdownsPayload, encrypted: true, updatedAt: nowTs }));
                 promises.push(setDoc(doc(db, "settings", "deleted_records"), encTombDoc));
 
                 const tasks = promises;
